@@ -230,92 +230,91 @@ inline void erase_column(unsigned short *out, int x0, int nth) {
 	}
 }
 
-// Render every nth pixel column (starting at x0) of a heightfield containing combined height and color values.
+// Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
-void render(const position *pos, unsigned short *out, const unsigned short combined[][WIDTH], int x0, int nth) {
-	for (unsigned short x=x0; x<VIEWPORT_MAX; x+=nth) {
-		fixp sample_u = pos->x;
-		fixp sample_v = pos->y;
-		fixp delta_u = pos->dirx - (x - 160) * pos->diry / 320;
-		fixp delta_v = pos->diry + (x - 160) * pos->dirx / 320;
+void render(const position *pos, unsigned short *out, const unsigned short combined[][WIDTH], unsigned short int x) {
+	set_color(0xff0);
+	fixp sample_u = pos->x;
+	fixp sample_v = pos->y;
+	fixp delta_u = pos->dirx - (x - 160) * pos->diry / 320;
+	fixp delta_v = pos->diry + (x - 160) * pos->dirx / 320;
 
-		//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
+	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
 #ifdef PROGRESSIVE_STEPSIZE
-		for (int z = 1; z < STEPS_MIN; z++) {
+	for (int z = 1; z < STEPS_MIN; z++) {
+		sample_u += delta_u;
+		sample_v += delta_v;
+		delta_u = progression(delta_u);
+		delta_v = progression(delta_v);
+	}
+#else
+	sample_u += STEPS_MIN * delta_u;
+	sample_v += STEPS_MIN * delta_v;
+#endif
+
+	short sample_y = 200;
+	short prev_sample_y = 200;
+	
+	int step_size = 1;
+	int z = STEPS_MIN;
+
+	unsigned short color = 0;
+
+	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
+	unsigned char * pBlock = ((unsigned char *)&out[199*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
+	short horizon_y = 0;
+	for(short y=199; y >= 0; y-=LINES_SKIP) {
+		set_color(0x00f);
+		while (z < STEPS_MAX && y < sample_y) {
+			//put_pixel(out, 15, fixp_uint(sample_u)/4, fixp_uint(sample_v)/4); 
+			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
+			short h = height_color & 0xff;
+			sample_y = y_table[h][z];
+			color = height_color >> 8;
+
+			z += step_size;
 			sample_u += delta_u;
 			sample_v += delta_v;
+#ifdef PROGRESSIVE_STEPSIZE
 			delta_u = progression(delta_u);
 			delta_v = progression(delta_v);
-		}
-#else
-		sample_u += STEPS_MIN * delta_u;
-		sample_v += STEPS_MIN * delta_v;
-#endif
-
-		short sample_y = 200;
-		short prev_sample_y = 200;
-		
-		int step_size = 1;
-		int z = STEPS_MIN;
-
-		unsigned short color = 0;
-
-		// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
-		unsigned char * pBlock = ((unsigned char *)&out[199*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-		short horizon_y = 0;
-		for(short y=199; y >= 0; y-=LINES_SKIP) {
-			set_color(0x00f);
-			while (z < STEPS_MAX && y < sample_y) {
-				//put_pixel(out, 15, fixp_uint(sample_u)/4, fixp_uint(sample_v)/4); 
-				unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
-				short h = height_color & 0xff;
-				sample_y = y_table[h][z];
-				color = height_color >> 8;
-				
-				z += step_size;
-				sample_u += delta_u;
-				sample_v += delta_v;
-#ifdef PROGRESSIVE_STEPSIZE
-				delta_u = progression(delta_u);
-				delta_v = progression(delta_v);
 #endif
 #ifdef ADAPTIVE_SAMPLING				
-				// Adaptive step size handling
-				if (sample_y < prev_sample_y - 4) {
-					// Make smaller steps if the current step size causes large pixel steps
-					if (step_size > 2) step_size = step_size >> 1;
-				} else if (sample_y + 1 >= prev_sample_y) {
-					// Make larger steps if the current step size causes small or negative pixel steps
-					step_size += step_size + (step_size >> 2) + 1;
-				}
+			// Adaptive step size handling
+			if (sample_y < prev_sample_y - 4) {
+				// Make smaller steps if the current step size causes large pixel steps
+				if (step_size > 2) step_size = step_size >> 1;
+			} else if (sample_y + 1 >= prev_sample_y) {
+				// Make larger steps if the current step size causes small or negative pixel steps
+				step_size += step_size + (step_size >> 2) + 1;
+			}
 #endif				
-				// remember y for next sample
-				prev_sample_y = sample_y;
-			}
-			set_color(0xf00);
-			
-			if (z >= STEPS_MAX) {
-				// Maximum view distance reached, fill the rest of the screen with color 0.
-				color = 0;
-				// Record the first line (highest y) on which sky was visible
-				if (y > horizon_y) {
-					horizon_y = y;
-				}
-				// Once we know that we're painting over sky left from previous frame, break the loop
-				if (y <= horizon[x]) {
-					break;
-				}
-			}
-
-			// Use movep to write 8 pixels at once
-			int opacity = (color == 0 || z < STEPS_MAX/2) ? 7 : 7 - (8 * (z-STEPS_MAX/2) / (STEPS_MAX/2));
-			register unsigned int movep_data = pdata_table[y&7][opacity][color];
-			asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
-			pBlock -= 160*LINES_SKIP;
+			// remember y for next sample
+			prev_sample_y = sample_y;
 		}
-		// Save the horizon's y position.
-		horizon[x] = horizon_y - 1;
-	} 
+		set_color(0xf00);
+
+		if (z >= STEPS_MAX) {
+			// Maximum view distance reached, fill the rest of the screen with color 0.
+			color = 0;
+			// Record the first line (highest y) on which sky was visible
+			if (y > horizon_y) {
+				horizon_y = y;
+			}
+			// Once we know that we're painting over sky left from previous frame, break the loop
+			if (y <= horizon[x]) {
+				break;
+			}
+		}
+
+		// Use movep to write 8 pixels at once
+		int opacity = (color == 0 || z < STEPS_MAX/2) ? 7 : 7 - (8 * (z-STEPS_MAX/2) / (STEPS_MAX/2));
+		register unsigned int movep_data = pdata_table[y&7][opacity][color];
+		asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
+		pBlock -= 160*LINES_SKIP;
+	}
+	// Save the horizon's y position.
+	horizon[x] = horizon_y - 1;
 }
 
 
@@ -338,7 +337,9 @@ int main(int argc, char **argv) {
 	for(int i=0; i<800; i++) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
-		render(&pos, Physbase(), combined, VIEWPORT_MIN + 4 + ((i&1)<<3), 16);
+		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+			render(&pos, Physbase(), combined, x);
+		}
 		set_color(saved_color);
 		pos.x += 1*pos.dirx;
 		pos.y += 1*pos.diry;
