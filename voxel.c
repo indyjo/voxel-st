@@ -1,4 +1,6 @@
+#include <mint/linea.h>
 #include <mint/osbind.h>
+#include <mint/sysvars.h>
 #include <stdio.h>
 
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
@@ -24,8 +26,8 @@ typedef signed short fixp;
 #define LINES_SKIP 1
 
 // First and last sample
-#define STEPS_MIN 15
-#define STEPS_MAX 128
+#define STEPS_MIN 4
+#define STEPS_MAX 64
 
 // Uncomment to introduce some curvature towards the horizon, like on a spherical planet
 //#define CURVED_TERRAIN
@@ -34,7 +36,14 @@ typedef signed short fixp;
 //#define ADAPTIVE_SAMPLING
 
 // Uncomment to enable progressing step size
-//#define PROGRESSIVE_STEPSIZE
+#define PROGRESSIVE_STEPSIZE
+
+// Progression should happen every 2^N steps
+#define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
+
+inline fixp progression(fixp x) {
+	return x + x;
+}
 
 // Generated data (see other .c files)
 extern void set_palette();
@@ -45,8 +54,8 @@ extern unsigned char height[512][512];
 // it's more efficient to have a unified word array since the ST reads a word anyway.
 unsigned short combined[512][512];
 
-// y_table[h][z] contains the y coordinate of a point at height h at a distance of z.
-signed short y_table[256][STEPS_MAX];
+// y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
+signed short y_table[STEPS_MAX][256+256];
 
 // pdata_table[y][opacity][color] contains pixel data prepared for movep.
 // 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
@@ -95,7 +104,7 @@ void clear_screen(unsigned short *out) {
 }
 
 typedef struct position {
-	fixp x,y,z,dirx,diry;
+	fixp x,y,z,dirx,diry,speed;
 } position;
 
 signed short fixp_int(fixp val) {
@@ -108,10 +117,6 @@ unsigned short fixp_uint(fixp val) {
 
 fixp fixp_mul(fixp a, fixp b) {
 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-}
-
-inline fixp progression(fixp x) {
-	return x + (x >> 6);
 }
 
 // Draw a pixel in the specified color at x/y relative to out
@@ -159,21 +164,24 @@ inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x,
 
 // Prepares look-up tables
 void build_tables() {
+	// Prepares the lookup table that associates a heightfield sample h and a distance z with a screen y coordinate.
 	// Map height and distance along z axis to an y screen coordinate
-	for (int h=0; h<256; h++) {
+	for (int h=0; h<256+256; h++) {
 		fixp dist = FIXP(1,0);
 		fixp step = FIXP(1,0);
 		for (int z=1; z<STEPS_MAX; z++) {
-			y_table[h][z] = 100 - 70 * (h - 100) / fixp_int(dist);
+			y_table[z][h] = 120 - 70 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
-			y_table[h][z] += 70 * fixp_int(dist) / 400;
+			y_table[z][h] += 70 * fixp_int(dist) / 400;
 #endif
 			dist += step;
 #ifdef PROGRESSIVE_STEPSIZE
-			step = progression(step);
+			if (TRIGGERS_PROGRESSION(z))
+				step = progression(step);
 #endif
 		}
 	}
+
 	// Combine color and height arrays into a single array.
 	for (int y=0; y<HEIGHT; y++) {
 		for (int x=0; x<WIDTH; x++) {
@@ -207,7 +215,7 @@ void build_tables() {
 		}
 	}
 
-	for (int x=0; x<32; x++) horizon[x] = -1;
+	for (int x=0; x<320; x++) horizon[x] = -1;
 }
 
 // Erase every nth pixel (starting at x0) within the containing 16px-aligned 16px column of the screen.
@@ -232,7 +240,7 @@ inline void erase_column(unsigned short *out, int x0, int nth) {
 
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
-void render(const position *pos, unsigned short *out, const unsigned short combined[][WIDTH], unsigned short int x) {
+void render(const position *pos, unsigned short *out, int player_height, unsigned short int x, short y_offset) {
 	set_color(0xff0);
 	fixp sample_u = pos->x;
 	fixp sample_v = pos->y;
@@ -240,20 +248,21 @@ void render(const position *pos, unsigned short *out, const unsigned short combi
 	fixp delta_v = pos->diry + (x - 160) * pos->dirx / 320;
 
 	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
-#ifdef PROGRESSIVE_STEPSIZE
-	for (int z = 1; z < STEPS_MIN; z++) {
-		sample_u += delta_u;
-		sample_v += delta_v;
-		delta_u = progression(delta_u);
-		delta_v = progression(delta_v);
-	}
-#else
 	sample_u += STEPS_MIN * delta_u;
 	sample_v += STEPS_MIN * delta_v;
-#endif
 
 	short sample_y = 200;
 	short prev_sample_y = 200;
+#ifdef ADAPTIVE_SAMPLING
+	short prev_prev_sample_y = 200;
+	fixp prev_sample_u = 0;
+	fixp prev_sample_v = 0;
+#ifdef PROGRESSIVE_STEPSIZE
+	fixp prev_delta_u = 0;
+	fixp prev_delta_v = 0;
+#endif
+	int prev_z = 0;
+#endif
 	
 	int step_size = 1;
 	int z = STEPS_MIN;
@@ -263,33 +272,67 @@ void render(const position *pos, unsigned short *out, const unsigned short combi
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
 	unsigned char * pBlock = ((unsigned char *)&out[199*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
 	short horizon_y = 0;
+#pragma GCC unroll 1
 	for(short y=199; y >= 0; y-=LINES_SKIP) {
 		set_color(0x00f);
 		while (z < STEPS_MAX && y < sample_y) {
-			//put_pixel(out, 15, fixp_uint(sample_u)/4, fixp_uint(sample_v)/4); 
+			//put_pixel(out, 15, fixp_uint(sample_u)/2, fixp_uint(sample_v)/2); 
 			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
 			short h = height_color & 0xff;
-			sample_y = y_table[h][z];
+			sample_y = y_table[z][h + 256 - player_height] + y_offset;
 			color = height_color >> 8;
 
-			z += step_size;
-			sample_u += delta_u;
-			sample_v += delta_v;
-#ifdef PROGRESSIVE_STEPSIZE
-			delta_u = progression(delta_u);
-			delta_v = progression(delta_v);
-#endif
 #ifdef ADAPTIVE_SAMPLING				
 			// Adaptive step size handling
 			if (sample_y < prev_sample_y - 4) {
 				// Make smaller steps if the current step size causes large pixel steps
-				if (step_size > 2) step_size = step_size >> 1;
-			} else if (sample_y + 1 >= prev_sample_y) {
+				if (step_size > 1) {
+					step_size = step_size >> 1;
+					// If this sample is visible, backtrack
+					if (sample_y <= y) {
+						z = prev_z;
+						sample_u = prev_sample_u;
+						sample_v = prev_sample_v;
+						sample_y = prev_sample_y;
+						prev_sample_y = prev_prev_sample_y;
+#ifdef PROGRESSIVE_STEPSIZE
+						delta_u = prev_delta_u;
+						delta_v = prev_delta_v;
+#endif
+					}
+				}
+				
+			} else if (sample_y + 3 >= prev_sample_y) {
 				// Make larger steps if the current step size causes small or negative pixel steps
 				step_size += step_size + (step_size >> 2) + 1;
 			}
-#endif				
+
+			prev_sample_u = sample_u;
+			prev_sample_v = sample_v;
+#ifdef PROGRESSIVE_STEPSIZE
+			prev_delta_u = delta_u;
+			prev_delta_v = delta_v;
+#endif
+			prev_z = z;
+#endif
+
+			for(int i=0; i<step_size; i++) {
+				z++;
+				sample_u += delta_u;
+				sample_v += delta_v;
+#ifdef PROGRESSIVE_STEPSIZE
+				if (TRIGGERS_PROGRESSION(z)) {
+					delta_u = progression(delta_u);
+					delta_v = progression(delta_v);
+				}
+#endif
+			}
+
+			
 			// remember y for next sample
+#ifdef ADAPTIVE_SAMPLING
+			prev_prev_sample_y = prev_sample_y;
+#endif
 			prev_sample_y = sample_y;
 		}
 		set_color(0xf00);
@@ -317,34 +360,74 @@ void render(const position *pos, unsigned short *out, const unsigned short combi
 	horizon[x] = horizon_y - 1;
 }
 
-
 position pos = {
-	.x = FIXP(456, 0),
-	.y = FIXP(-44, 0),
+	.x = FIXP(145, 0),
+	.y = FIXP(340, 0),
 	.z = FIXP(100, 0),
-	.dirx = FIXP(-1, -118),
-	.diry = FIXP(0, 49), 
+	.dirx = FIXP(-1, -49),
+	.diry = FIXP(-1, -118),
+	.speed = FIXP(1, 0),
 };
 
 
+#define FRAMES 800
+
 int main(int argc, char **argv) {
+	// Enter supervisor mode so we can use HW registers
 	Super(0L);
+	// Initialize LINEA functions
+	linea0();
+	// Hide mouse cursor
+	lineaa();
 	build_tables();
 	printf("Tables computed.\n");
         set_palette();
 	draw_image2(Physbase(), colors);
 	clear_screen(Physbase());
-	for(int i=0; i<800; i++) {
+	unsigned long t0 = *_hz_200;
+	int last_player_altitude = 40;
+	for(int i=0; i<FRAMES; i++) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
+
+		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)] & 0xff;
+		int player_altitude = height_under_player + 20;
+		if (player_altitude > 255) player_altitude = 255;
+		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
+		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
+		last_player_altitude = player_altitude;
+
+		short mouse_x = GCURX, mouse_y = GCURY;
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-			render(&pos, Physbase(), combined, x);
+			render(&pos, Physbase(), player_altitude, x, ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160);
 		}
 		set_color(saved_color);
-		pos.x += 1*pos.dirx;
-		pos.y += 1*pos.diry;
+		pos.x += fixp_mul(pos.dirx, pos.speed);
+		pos.y += fixp_mul(pos.diry, pos.speed);
+		pos.speed += (100 - mouse_y) >> 2;
+		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
+		if (pos.speed > 0) pos.speed -= drag;
+		else pos.speed += drag;
+		fixp rot = (160 - mouse_x) >> 3;
+		pos.dirx += fixp_mul(rot, pos.diry);
+		pos.diry -= fixp_mul(rot, pos.dirx);
+		
+		// renormalize dirx, diry using a first-order approximation of the inverse square root, f(x) = 1/sqrt(x);
+		// f(1) = 1/sqrt(1)
+		// f'(x) = -0.5 * sqrt(x^(-3/2)) = -0.5 * sqrt(1/x^(3/2))
+		// f'(1) = -0.5
+		fixp factor = FIXP(1,0) - ((fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry) - FIXP(1,0)) >> 1);
+		pos.dirx = fixp_mul(factor, pos.dirx);
+		pos.diry = fixp_mul(factor, pos.diry);
+		
+		//printf("len: %d, factor: %d\n", fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry), factor);
 		//Vsync();
 	}
+	unsigned long t1 = *_hz_200;
+	unsigned long millis = (t1 - t0) * 5;
+	unsigned long millis_per_frame = millis / FRAMES;
+	printf("Rendering took %dms per frame.\n", millis_per_frame);
+	
 	getchar();
 	return 0;
 }
