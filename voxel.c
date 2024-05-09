@@ -11,6 +11,9 @@
 #define FIXP(_r,_f) ((((_r) << FIXP_PRECISION) & ~FIXP_FRACT_MASK) | (_f & FIXP_FRACT_MASK))
 typedef signed short fixp;
 
+// Should mouse control be active?
+#define INTERACTIVE
+
 // If defined, background color is used to measure performance
 //#define COLORBAR_PROFILING
 
@@ -60,6 +63,9 @@ signed short y_table[STEPS_MAX][256+256];
 // pdata_table[y][opacity][color] contains pixel data prepared for movep.
 // 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
 unsigned int pdata_table[8][8][16];
+
+// An opacity value between 0 and 7 for each distance step.
+unsigned char opacity_table[STEPS_MAX];
 
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
 signed short horizon[320];
@@ -164,22 +170,27 @@ inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x,
 
 // Prepares look-up tables
 void build_tables() {
-	// Prepares the lookup table that associates a heightfield sample h and a distance z with a screen y coordinate.
-	// Map height and distance along z axis to an y screen coordinate
-	for (int h=0; h<256+256; h++) {
-		fixp dist = FIXP(1,0);
-		fixp step = FIXP(1,0);
-		for (int z=1; z<STEPS_MAX; z++) {
+	// Prepare distance-dependent lookup tables.
+	// An opacity table that maps distance z to an opacity value.
+	// A y table table that associates a heightfield sample h and a distance z with a screen y coordinate.
+	fixp dist = FIXP(1,0);
+	fixp step = FIXP(1,0);
+	for (int z=1; z<STEPS_MAX; z++) {
+		for (int h=0; h<256+256; h++) {
 			y_table[z][h] = 120 - 70 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
 			y_table[z][h] += 70 * fixp_int(dist) / 400;
 #endif
-			dist += step;
-#ifdef PROGRESSIVE_STEPSIZE
-			if (TRIGGERS_PROGRESSION(z))
-				step = progression(step);
-#endif
 		}
+		dist += step;
+#ifdef PROGRESSIVE_STEPSIZE
+		if (TRIGGERS_PROGRESSION(z))
+			step = progression(step);
+#endif
+		int rel_dist = z - STEPS_MAX/2;
+		if (rel_dist < 0) rel_dist = 0;
+		int max_dist = STEPS_MAX - STEPS_MAX/2;
+		opacity_table[z] = 8 * (max_dist - rel_dist - 1) / max_dist;
 	}
 
 	// Combine color and height arrays into a single array.
@@ -351,7 +362,7 @@ void render(const position *pos, unsigned short *out, int player_height, unsigne
 		}
 
 		// Use movep to write 8 pixels at once
-		int opacity = (color == 0 || z < STEPS_MAX/2) ? 7 : 7 - (8 * (z-STEPS_MAX/2) / (STEPS_MAX/2));
+		unsigned char opacity = opacity_table[z];
 		register unsigned int movep_data = pdata_table[y&7][opacity][color];
 		asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
 		pBlock -= 160*LINES_SKIP;
@@ -399,11 +410,17 @@ int main(int argc, char **argv) {
 
 		short mouse_x = GCURX, mouse_y = GCURY;
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-			render(&pos, Physbase(), player_altitude, x, ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160);
+#ifdef INTERACTIVE
+			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+#else
+			int y_offset = 0;
+#endif
+			render(&pos, Physbase(), player_altitude, x, y_offset);
 		}
 		set_color(saved_color);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
 		pos.y += fixp_mul(pos.diry, pos.speed);
+#ifdef INTERACTIVE
 		pos.speed += (100 - mouse_y) >> 2;
 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
 		if (pos.speed > 0) pos.speed -= drag;
@@ -419,6 +436,7 @@ int main(int argc, char **argv) {
 		fixp factor = FIXP(1,0) - ((fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry) - FIXP(1,0)) >> 1);
 		pos.dirx = fixp_mul(factor, pos.dirx);
 		pos.diry = fixp_mul(factor, pos.diry);
+#endif
 		
 		//printf("len: %d, factor: %d\n", fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry), factor);
 		//Vsync();
