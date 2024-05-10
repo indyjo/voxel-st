@@ -28,12 +28,17 @@ typedef signed short fixp;
 // Draw every nth line
 #define LINES_SKIP 1
 
+// Whether to stop sampling occluded terrain
+#define OCCLUSION_CULLING
+// Above which pixel height to start checking whether to apply occlusion culling.
+#define OCCLUSION_THRESHOLD_Y 100
+
 // First and last sample
 #define STEPS_MIN 4
 #define STEPS_MAX 64
 
 // Uncomment to introduce some curvature towards the horizon, like on a spherical planet
-//#define CURVED_TERRAIN
+#define CURVED_TERRAIN
 
 // Uncomment to enable adaptive step width sampling
 //#define ADAPTIVE_SAMPLING
@@ -56,6 +61,9 @@ extern unsigned char height[512][512];
 // Instead of having a byte array for height and a byte array for color,
 // it's more efficient to have a unified word array since the ST reads a word anyway.
 unsigned short combined[512][512];
+
+// The maximum height occuring in the heightfield.
+unsigned char max_height;
 
 // y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
 signed short y_table[STEPS_MAX][256+256];
@@ -194,9 +202,12 @@ void build_tables() {
 	}
 
 	// Combine color and height arrays into a single array.
+	max_height = 0;
 	for (int y=0; y<HEIGHT; y++) {
 		for (int x=0; x<WIDTH; x++) {
 			combined[y][x] = (colors[y][x] << 8) | height[y][x];
+			if (height[y][x] > max_height)
+				max_height = height[y][x];
 		}
 	}
 	
@@ -249,9 +260,15 @@ inline void erase_column(unsigned short *out, int x0, int nth) {
 	}
 }
 
+// Pointer to the first of the 8 bytes of memory in pixel buffer out which contain the pixel at line y, column x
+inline unsigned char* pixel_block_address(unsigned short *out, short x, short y) {
+	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
-void render(const position *pos, unsigned short *out, int player_height, unsigned short int x, short y_offset) {
+// Returns the first y position that wasn't filled.
+short render(const position *pos, unsigned short *out, int player_height, unsigned short int x, short y_offset) {
 	set_color(0xff0);
 	fixp sample_u = pos->x;
 	fixp sample_v = pos->y;
@@ -263,8 +280,8 @@ void render(const position *pos, unsigned short *out, int player_height, unsigne
 	sample_v += STEPS_MIN * delta_v;
 
 	short sample_y = 200;
-	short prev_sample_y = 200;
 #ifdef ADAPTIVE_SAMPLING
+	short prev_sample_y = 200;
 	short prev_prev_sample_y = 200;
 	fixp prev_sample_u = 0;
 	fixp prev_sample_v = 0;
@@ -281,13 +298,23 @@ void render(const position *pos, unsigned short *out, int player_height, unsigne
 	unsigned short color = 0;
 
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
-	unsigned char * pBlock = ((unsigned char *)&out[199*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	short horizon_y = 0;
-#pragma GCC unroll 1
-	for(short y=199; y >= 0; y-=LINES_SKIP) {
-		set_color(0x00f);
-		while (z < STEPS_MAX && y < sample_y) {
-			//put_pixel(out, 15, fixp_uint(sample_u)/2, fixp_uint(sample_v)/2); 
+	unsigned char * pBlock = pixel_block_address(out, x, 199);
+
+	short y = 199;
+	while(y >= 0 && z < STEPS_MAX) {
+		// Find the next sample to display.
+		if (y < sample_y) {
+			// We haven't yet found the terrain sample that covers the pixel. Try the next sample.
+
+			set_color(0x00f);
+			// put_pixel(out, 15, fixp_uint(sample_u)/2, fixp_uint(sample_v)/2); 
+#ifdef OCCLUSION_CULLING
+			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table[z][max_height + 256 - player_height]) {
+				z = STEPS_MAX;
+				//for (int xp=x; xp<x+8; xp++) put_pixel(out, 15, xp, y);
+				break;
+			}
+#endif
 			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + 256 - player_height] + y_offset;
@@ -343,32 +370,33 @@ void render(const position *pos, unsigned short *out, int player_height, unsigne
 			// remember y for next sample
 #ifdef ADAPTIVE_SAMPLING
 			prev_prev_sample_y = prev_sample_y;
-#endif
 			prev_sample_y = sample_y;
-		}
-		set_color(0xf00);
+#endif
+		} else {
+			// We found a terrain sample that covers the current y.
+			set_color(0xf00);
 
-		if (z >= STEPS_MAX) {
-			// Maximum view distance reached, fill the rest of the screen with color 0.
-			color = 0;
-			// Record the first line (highest y) on which sky was visible
-			if (y > horizon_y) {
-				horizon_y = y;
-			}
-			// Once we know that we're painting over sky left from previous frame, break the loop
-			if (y <= horizon[x]) {
-				break;
-			}
+			// Use movep to write 8 pixels at once
+			unsigned int movep_data = pdata_table[y&7][opacity_table[z]][color];
+			asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
+			pBlock -= 160*LINES_SKIP;
+			y -= LINES_SKIP;
 		}
-
-		// Use movep to write 8 pixels at once
-		unsigned char opacity = opacity_table[z];
-		register unsigned int movep_data = pdata_table[y&7][opacity][color];
-		asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
-		pBlock -= 160*LINES_SKIP;
 	}
-	// Save the horizon's y position.
-	horizon[x] = horizon_y - 1;
+	return y;
+}
+
+
+short patch_sky(unsigned short *out, short x, short y) {
+	unsigned char * pBlock = pixel_block_address(out, x, y);
+	short remaining_lines = y - horizon[x];
+	unsigned int movep_data = 0;
+	while (remaining_lines > 0) {
+		asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
+		pBlock -= 160 * LINES_SKIP;
+		remaining_lines -= LINES_SKIP;
+	}
+	horizon[x] = y;
 }
 
 position pos = {
@@ -393,8 +421,9 @@ int main(int argc, char **argv) {
 	build_tables();
 	printf("Tables computed.\n");
         set_palette();
-	draw_image2(Physbase(), colors);
-	clear_screen(Physbase());
+	unsigned short *screen = Physbase();
+	draw_image2(screen, colors);
+	clear_screen(screen);
 	unsigned long t0 = *_hz_200;
 	int last_player_altitude = 40;
 	for(int i=0; i<FRAMES; i++) {
@@ -415,7 +444,8 @@ int main(int argc, char **argv) {
 #else
 			int y_offset = 0;
 #endif
-			render(&pos, Physbase(), player_altitude, x, y_offset);
+			short y = render(&pos, screen, player_altitude, x, y_offset);
+			patch_sky(screen, x, y);
 		}
 		set_color(saved_color);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
