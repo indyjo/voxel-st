@@ -265,6 +265,11 @@ inline unsigned char* pixel_block_address(unsigned short *out, short x, short y)
 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
 }
 
+// Quickly fill a sequence of 8 pixels.
+inline void move_p(unsigned char *p, unsigned int data) {
+	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
@@ -376,11 +381,23 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 			// We found a terrain sample that covers the current y.
 			set_color(0xf00);
 
-			// Use movep to write 8 pixels at once
-			unsigned int movep_data = pdata_table[y&7][opacity_table[z]][color];
-			asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
+			// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
+			// a stipple pattern for emulating fog. If full opacity, optimize by recycling the
+			// pixel data along the full pixel height of the sample.
+			unsigned char opacity = opacity_table[z];
+			unsigned int movep_data = pdata_table[y&7][opacity][color];
+			move_p(pBlock, movep_data);
 			pBlock -= 160*LINES_SKIP;
 			y -= LINES_SKIP;
+			// Is full opacity? Then also draw rest of the column in a tight loop.
+			if (opacity == 7) {
+				if (sample_y < 0) sample_y = 0;
+				while (y >= sample_y) {
+					move_p(pBlock, movep_data);
+					pBlock -= 160*LINES_SKIP;
+					y -= LINES_SKIP;
+				}
+			}
 		}
 	}
 	return y;
@@ -392,7 +409,7 @@ short patch_sky(unsigned short *out, short x, short y) {
 	short remaining_lines = y - horizon[x];
 	unsigned int movep_data = 0;
 	while (remaining_lines > 0) {
-		asm ("movep.l %0, 0(%1)" : : "d" (movep_data), "a" (pBlock));
+		move_p(pBlock, movep_data);
 		pBlock -= 160 * LINES_SKIP;
 		remaining_lines -= LINES_SKIP;
 	}
