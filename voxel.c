@@ -60,7 +60,10 @@ extern unsigned char height[512][512];
 
 // Instead of having a byte array for height and a byte array for color,
 // it's more efficient to have a unified word array since the ST reads a word anyway.
-unsigned short combined[512][512];
+unsigned short combined[HEIGHT][WIDTH];
+
+// Linear adressing can be more efficient.
+const unsigned short *combined_lin = &combined[0][0];
 
 // The maximum height occuring in the heightfield.
 unsigned char max_height;
@@ -322,7 +325,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
+			unsigned short height_color = combined_lin[(((unsigned short)sample_v & ~FIXP_FRACT_MASK) << 2) | fixp_uint(sample_u)];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
