@@ -273,12 +273,14 @@ inline void move_p(unsigned char *p, unsigned int data) {
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
-short render(const position *pos, unsigned short *out, int player_height, unsigned short int x, short y_offset) {
+short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset) {
+	short ytable_offset = 256 - player_height;
+	short max_height_ytable_index = max_height + ytable_offset;
 	set_color(0xff0);
 	fixp sample_u = pos->x;
 	fixp sample_v = pos->y;
-	fixp delta_u = pos->dirx - (x - 160) * pos->diry / 320;
-	fixp delta_v = pos->diry + (x - 160) * pos->dirx / 320;
+	fixp delta_u = pos->dirx - ((short)(x - 160) * pos->diry >> 8);
+	fixp delta_v = pos->diry + ((short)(x - 160) * pos->dirx >> 8);
 
 	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
 	sample_u += STEPS_MIN * delta_u;
@@ -314,7 +316,7 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 			set_color(0x00f);
 			// put_pixel(out, 15, fixp_uint(sample_u)/2, fixp_uint(sample_v)/2); 
 #ifdef OCCLUSION_CULLING
-			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table[z][max_height + 256 - player_height]) {
+			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table[z][max_height_ytable_index]) {
 				z = STEPS_MAX;
 				//for (int xp=x; xp<x+8; xp++) put_pixel(out, 15, xp, y);
 				break;
@@ -322,7 +324,7 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 #endif
 			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
 			short h = height_color & 0xff;
-			sample_y = y_table[z][h + 256 - player_height] + y_offset;
+			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
 
 #ifdef ADAPTIVE_SAMPLING				
