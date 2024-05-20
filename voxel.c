@@ -18,8 +18,9 @@ typedef signed short fixp;
 //#define COLORBAR_PROFILING
 
 // Heightfield dimensions
-#define WIDTH 512
-#define HEIGHT 512
+#define DIM_BITS 9
+#define WIDTH (1<<DIM_BITS)
+#define HEIGHT (1<<DIM_BITS)
 
 // Can be used to display a narrower viewport
 #define VIEWPORT_MIN 0
@@ -44,7 +45,7 @@ typedef signed short fixp;
 //#define ADAPTIVE_SAMPLING
 
 // Uncomment to enable progressing step size
-#define PROGRESSIVE_STEPSIZE
+//#define PROGRESSIVE_STEPSIZE
 
 // Progression should happen every 2^N steps
 #define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
@@ -78,6 +79,9 @@ unsigned char opacity_table[STEPS_MAX];
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
 signed short horizon[320];
 
+// Deflection of a pixel column relative to direction of view.
+fixp deflection[320];
+
 // Utility functions for profiling by setting palette color 0
 unsigned short *hw_palette = (unsigned short *) 0xff8240;
 
@@ -85,7 +89,7 @@ unsigned short get_color() {
 	return *hw_palette;
 }
 
-void set_color(unsigned short rgb) {
+void set_background_color(unsigned short rgb) {
 #ifdef COLORBAR_PROFILING
 	*hw_palette = rgb;
 #endif
@@ -176,6 +180,28 @@ inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x,
 	//printf("put_pixel done.\n"); 
 }
 
+inline unsigned char wrap_color(int x, int y) {
+	const int mask = (1 << DIM_BITS) - 1;
+	return colors[y & mask][x & mask];
+}
+
+inline void set_color_wrap(int x, int y, unsigned short value) {
+	const int mask = (1 << DIM_BITS) - 1;
+	combined[y & mask][x & mask] &= 0xf0ff;
+	combined[y & mask][x & mask] |= (value & 0xf) << 8;
+}
+
+inline unsigned char get_skipcount(int x, int y) {
+	const int mask = (1 << DIM_BITS) - 1;
+	return (combined[y & mask][x & mask] & 0xf000) >> 12;
+}
+
+inline void set_skipcount(int x, int y, unsigned char value) {
+	const int mask = (1 << DIM_BITS) - 1;
+	combined[y & mask][x & mask] &= 0xfff;
+	combined[y & mask][x & mask] |= (unsigned short) value << 12;
+}
+
 // Prepares look-up tables
 void build_tables() {
 	// Prepare distance-dependent lookup tables.
@@ -202,15 +228,64 @@ void build_tables() {
 	}
 
 	// Combine color and height arrays into a single array.
+	printf("Combining height and color...\n");
 	max_height = 0;
 	for (int y=0; y<HEIGHT; y++) {
 		for (int x=0; x<WIDTH; x++) {
-			combined[y][x] = (colors[y][x] << 8) | height[y][x];
+			combined[y][x] = ((colors[y][x] & 0xf) << 8) | height[y][x];
 			if (height[y][x] > max_height)
 				max_height = height[y][x];
 		}
 	}
-	
+
+	printf("Creating skipmap...\n");
+	int count = 0;
+	for (int y=0; y<HEIGHT; y++) {
+		for (int x=0; x<WIDTH; x++) {
+			unsigned char c = wrap_color(x, y);
+			int eq = 1
+				&& c == wrap_color(x-1, y-1)
+				&& c == wrap_color(  x, y-1)
+				&& c == wrap_color(x+1, y-1)
+				&& c == wrap_color(x-1,   y)
+				&& c == wrap_color(x+1,   y)
+				&& c == wrap_color(x-1, y+1)
+				&& c == wrap_color(  x, y+1)
+				&& c == wrap_color(x+1, y+1);
+			if (eq) {
+				count++;
+				set_skipcount(x, y, 1);
+			} else {
+				set_skipcount(x, y, 0);
+			}
+		}
+	}
+	printf("Found %d candidates.\n", count);
+	for (int i=1; i<8; i++) {
+		count = 0;
+		for (int y=0; y<HEIGHT; y++) {
+			for (int x=0; x<WIDTH; x++) {
+				unsigned char s = get_skipcount(x, y);
+				if (s < i) continue;
+				int eq = 1
+					&& i <= get_skipcount(x-1, y-1)
+					&& i <= get_skipcount(  x, y-1)
+					&& i <= get_skipcount(x+1, y-1)
+					&& i <= get_skipcount(x-1,   y)
+					&& i <= get_skipcount(x+1,   y)
+					&& i <= get_skipcount(x-1, y+1)
+					&& i <= get_skipcount(  x, y+1)
+					&& i <= get_skipcount(x+1, y+1);
+				count += eq ? 1 : 0;
+				if (eq) {
+					set_skipcount(x, y, i + 1);
+				}
+			}
+		}
+		printf("Iteration %d: found %d candidates.\n", i, count);
+	}
+
+	printf("Creating Bayer table...\n");
 	int bayer[8][8] = {
 		{0, 32, 8,40, 2,34,10,42},
 		{48,16,56,24,50,18,58,26},
@@ -238,6 +313,8 @@ void build_tables() {
 	}
 
 	for (int x=0; x<320; x++) horizon[x] = -1;
+	for (int x=0; x<320; x++) deflection[x] = FIXP(x - 160, 0) / 320;
+	printf("All tables computed.\n");
 }
 
 // Erase every nth pixel (starting at x0) within the containing 16px-aligned 16px column of the screen.
@@ -274,11 +351,12 @@ inline void move_p(unsigned char *p, unsigned int data) {
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
 short render(const position *pos, unsigned short *out, int player_height, unsigned short int x, short y_offset) {
-	set_color(0xff0);
+	set_background_color(0xff0);
 	fixp sample_u = pos->x;
 	fixp sample_v = pos->y;
-	fixp delta_u = pos->dirx - (x - 160) * pos->diry / 320;
-	fixp delta_v = pos->diry + (x - 160) * pos->dirx / 320;
+	fixp factor = deflection[x];
+	fixp delta_u = pos->dirx - fixp_mul(pos->diry, factor);
+	fixp delta_v = pos->diry + fixp_mul(pos->dirx, factor);
 
 	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
 	sample_u += STEPS_MIN * delta_u;
@@ -311,7 +389,7 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 		if (y < sample_y) {
 			// We haven't yet found the terrain sample that covers the pixel. Try the next sample.
 
-			set_color(0x00f);
+			set_background_color(0x00f);
 			// put_pixel(out, 15, fixp_uint(sample_u)/2, fixp_uint(sample_v)/2); 
 #ifdef OCCLUSION_CULLING
 			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table[z][max_height + 256 - player_height]) {
@@ -323,7 +401,9 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 			unsigned short height_color = combined[fixp_int(sample_v)][fixp_int(sample_u)];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + 256 - player_height] + y_offset;
-			color = height_color >> 8;
+			color = (height_color & 0xf00) >> 8;
+			unsigned short skip = (height_color >> 12) & 0xf;
+			step_size += skip;
 
 #ifdef ADAPTIVE_SAMPLING				
 			// Adaptive step size handling
@@ -370,6 +450,7 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 				}
 #endif
 			}
+			step_size = 1;
 
 			
 			// remember y for next sample
@@ -379,7 +460,7 @@ short render(const position *pos, unsigned short *out, int player_height, unsign
 #endif
 		} else {
 			// We found a terrain sample that covers the current y.
-			set_color(0xf00);
+			set_background_color(0xf00);
 
 			// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 			// a stipple pattern for emulating fog. If full opacity, optimize by recycling the
@@ -440,12 +521,13 @@ int main(int argc, char **argv) {
         set_palette();
 	unsigned short *screen = Physbase();
 	draw_image2(screen, colors);
+	getchar();
 	clear_screen(screen);
 	unsigned long t0 = *_hz_200;
 	int last_player_altitude = 40;
 	for(int i=0; i<FRAMES; i++) {
 		unsigned short saved_color = get_color();
-		set_color(0x700);
+		set_background_color(0x700);
 
 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)] & 0xff;
 		int player_altitude = height_under_player + 20;
@@ -464,7 +546,7 @@ int main(int argc, char **argv) {
 			short y = render(&pos, screen, player_altitude, x, y_offset);
 			patch_sky(screen, x, y);
 		}
-		set_color(saved_color);
+		set_background_color(saved_color);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
 		pos.y += fixp_mul(pos.diry, pos.speed);
 #ifdef INTERACTIVE
