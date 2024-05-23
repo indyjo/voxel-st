@@ -2,6 +2,7 @@
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
 // This way, the integral part maps directly to a coordinate from the 512x512 heightfield.
@@ -20,6 +21,7 @@ typedef signed short fixp;
 // Heightfield dimensions
 #define WIDTH 512
 #define HEIGHT 512
+#define DIM_BITS 9
 
 // Can be used to display a narrower viewport
 #define VIEWPORT_MIN 0
@@ -40,14 +42,8 @@ typedef signed short fixp;
 // Uncomment to introduce some curvature towards the horizon, like on a spherical planet
 #define CURVED_TERRAIN
 
-// Uncomment to enable adaptive step width sampling
-//#define ADAPTIVE_SAMPLING
-
-// Uncomment to enable progressing step size
-#define PROGRESSIVE_STEPSIZE
-
-// Progression should happen every 2^N steps
-#define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
+// Mipmap progression should happen every 2^N steps
+#define TRIGGERS_MIPMAP_CHANGE(z) (((z) & ((1<<4)-1)) == 0)
 
 inline fixp progression(fixp x) {
 	return x + x;
@@ -58,12 +54,9 @@ extern void set_palette();
 extern unsigned char colors[512][512];
 extern unsigned char height[512][512];
 
-// Instead of having a byte array for height and a byte array for color,
-// it's more efficient to have a unified word array since the ST reads a word anyway.
-unsigned short combined[HEIGHT][WIDTH];
-
-// Linear adressing can be more efficient.
-const unsigned short *combined_lin = &combined[0][0];
+// An array of DIM_BITS+1 pointers, each pointing to an array of shorts (color and height information).
+// The entry with index N points to an array of M*M shorts, where M = 1 << N.
+unsigned short *combined_mip[DIM_BITS+1];
 
 // The maximum height occuring in the heightfield.
 unsigned char max_height;
@@ -194,10 +187,8 @@ void build_tables() {
 #endif
 		}
 		dist += step;
-#ifdef PROGRESSIVE_STEPSIZE
-		if (TRIGGERS_PROGRESSION(z))
-			step = progression(step);
-#endif
+		if (TRIGGERS_MIPMAP_CHANGE(z))
+			step <<= 1;
 		int rel_dist = z - STEPS_MAX/2;
 		if (rel_dist < 0) rel_dist = 0;
 		int max_dist = STEPS_MAX - STEPS_MAX/2;
@@ -206,11 +197,15 @@ void build_tables() {
 
 	// Combine color and height arrays into a single array.
 	max_height = 0;
-	for (int y=0; y<HEIGHT; y++) {
-		for (int x=0; x<WIDTH; x++) {
-			combined[y][x] = (colors[y][x] << 8) | height[y][x];
-			if (height[y][x] > max_height)
-				max_height = height[y][x];
+	for (int i=DIM_BITS; i>= 0; i--) {
+		combined_mip[i] = calloc (1 << (2*i), sizeof(unsigned short));
+		unsigned short *pCombined = combined_mip[i];
+		for (int y=0; y<HEIGHT; y+=1<<(DIM_BITS-i)) {
+			for (int x=0; x<WIDTH; x+=1<<(DIM_BITS-i)) {
+				*pCombined++ = (colors[y][x] << 8) | height[y][x];
+				if (i==DIM_BITS && height[y][x] > max_height)
+					max_height = height[y][x];
+			}
 		}
 	}
 	
@@ -273,6 +268,18 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
+inline int to_index(unsigned short u, unsigned short v, unsigned char mip_index) {
+	int idx;
+	if (mip_index > 8) {
+		idx = v << (2*mip_index - 16);
+	} else {
+		idx = v >> (16 - 2*mip_index);
+	}
+	idx &= ~((1<<mip_index)-1);
+	idx |= u >> (16 - mip_index);
+	return idx;
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
@@ -290,18 +297,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	sample_v += STEPS_MIN * delta_v;
 
 	short sample_y = 200;
-#ifdef ADAPTIVE_SAMPLING
-	short prev_sample_y = 200;
-	short prev_prev_sample_y = 200;
-	fixp prev_sample_u = 0;
-	fixp prev_sample_v = 0;
-#ifdef PROGRESSIVE_STEPSIZE
-	fixp prev_delta_u = 0;
-	fixp prev_delta_v = 0;
-#endif
-	int prev_z = 0;
-#endif
-	
+
 	int step_size = 1;
 	int z = STEPS_MIN;
 
@@ -309,6 +305,9 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
 	unsigned char * pBlock = pixel_block_address(out, x, 199);
+
+	unsigned short* combined = combined_mip[DIM_BITS];
+	unsigned char mip_index = DIM_BITS;
 
 	short y = 199;
 	while(y >= 0 && z < STEPS_MAX) {
@@ -325,64 +324,23 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned short height_color = combined_lin[(((unsigned short)sample_v & ~FIXP_FRACT_MASK) << 2) | fixp_uint(sample_u)];
+			unsigned short height_color = combined[to_index(sample_u, sample_v, mip_index)];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
-
-#ifdef ADAPTIVE_SAMPLING				
-			// Adaptive step size handling
-			if (sample_y < prev_sample_y - 4) {
-				// Make smaller steps if the current step size causes large pixel steps
-				if (step_size > 1) {
-					step_size = step_size >> 1;
-					// If this sample is visible, backtrack
-					if (sample_y <= y) {
-						z = prev_z;
-						sample_u = prev_sample_u;
-						sample_v = prev_sample_v;
-						sample_y = prev_sample_y;
-						prev_sample_y = prev_prev_sample_y;
-#ifdef PROGRESSIVE_STEPSIZE
-						delta_u = prev_delta_u;
-						delta_v = prev_delta_v;
-#endif
-					}
-				}
-				
-			} else if (sample_y + 3 >= prev_sample_y) {
-				// Make larger steps if the current step size causes small or negative pixel steps
-				step_size += step_size + (step_size >> 2) + 1;
-			}
-
-			prev_sample_u = sample_u;
-			prev_sample_v = sample_v;
-#ifdef PROGRESSIVE_STEPSIZE
-			prev_delta_u = delta_u;
-			prev_delta_v = delta_v;
-#endif
-			prev_z = z;
-#endif
 
 			for(int i=0; i<step_size; i++) {
 				z++;
 				sample_u += delta_u;
 				sample_v += delta_v;
-#ifdef PROGRESSIVE_STEPSIZE
-				if (TRIGGERS_PROGRESSION(z)) {
-					delta_u = progression(delta_u);
-					delta_v = progression(delta_v);
+				if (TRIGGERS_MIPMAP_CHANGE(z)) {
+					delta_u += delta_u;
+					delta_v += delta_v;
+					mip_index--;
+					combined = combined_mip[mip_index];
 				}
-#endif
 			}
-
-			
-			// remember y for next sample
-#ifdef ADAPTIVE_SAMPLING
-			prev_prev_sample_y = prev_sample_y;
-			prev_sample_y = sample_y;
-#endif
-		} else {
+	} else {
 			// We found a terrain sample that covers the current y.
 			set_color(0xf00);
 
@@ -430,6 +388,10 @@ position pos = {
 	.speed = FIXP(1, 0),
 };
 
+unsigned short height_at(fixp x, fixp y) {
+	unsigned short c = combined_mip[DIM_BITS][((int)fixp_uint(y) << DIM_BITS) + fixp_uint(x)];
+	return c & 0xff;
+}
 
 #define FRAMES 800
 
@@ -452,7 +414,7 @@ int main(int argc, char **argv) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
 
-		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)] & 0xff;
+		int height_under_player = height_at(pos.x, pos.y);
 		int player_altitude = height_under_player + 20;
 		if (player_altitude > 255) player_altitude = 255;
 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
