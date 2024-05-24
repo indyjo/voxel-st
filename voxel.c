@@ -273,6 +273,10 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
+inline unsigned int to_index(fixp u, fixp v) {
+	return (((unsigned short)v & ~FIXP_FRACT_MASK) << 2) | fixp_uint(u);
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
@@ -310,6 +314,8 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
 	unsigned char * pBlock = pixel_block_address(out, x, 199);
 
+	unsigned int index_mask = 0x3ffff;
+
 	short y = 199;
 	while(y >= 0 && z < STEPS_MAX) {
 		// Find the next sample to display.
@@ -325,7 +331,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned short height_color = combined_lin[(((unsigned short)sample_v & ~FIXP_FRACT_MASK) << 2) | fixp_uint(sample_u)];
+			unsigned short height_color = combined_lin[to_index(sample_u, sample_v) & index_mask];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
@@ -372,6 +378,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				if (TRIGGERS_PROGRESSION(z)) {
 					delta_u = progression(delta_u);
 					delta_v = progression(delta_v);
+					index_mask = (index_mask << 1) & 0x3fdfe;
 				}
 #endif
 			}
