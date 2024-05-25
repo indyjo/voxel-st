@@ -10,6 +10,7 @@
 #define FIXP_FACTOR (1<<FIXP_PRECISION)
 #define FIXP(_r,_f) ((((_r) << FIXP_PRECISION) & ~FIXP_FRACT_MASK) | (_f & FIXP_FRACT_MASK))
 typedef signed short fixp;
+typedef unsigned int fixp_2in1;
 
 // Should mouse control be active?
 #define INTERACTIVE
@@ -32,6 +33,9 @@ typedef signed short fixp;
 #define OCCLUSION_CULLING
 // Above which pixel height to start checking whether to apply occlusion culling.
 #define OCCLUSION_THRESHOLD_Y 100
+
+// Whether to draw faraway samples with a stipple pattern
+#define DISTANCE_FOG 1
 
 // First and last sample
 #define STEPS_MIN 4
@@ -134,6 +138,14 @@ unsigned short fixp_uint(fixp val) {
 
 fixp fixp_mul(fixp a, fixp b) {
 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+}
+
+inline fixp_2in1 make_2in1(fixp a, fixp b) {
+	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
+}
+
+inline fixp_2in1 add_2in1(fixp_2in1 a, fixp_2in1 b) {
+	return (a + b) & 0xfffefffe;
 }
 
 // Draw a pixel in the specified color at x/y relative to out
@@ -280,24 +292,23 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	short ytable_offset = 256 - player_height;
 	short max_height_ytable_index = max_height + ytable_offset;
 	set_color(0xff0);
-	fixp sample_u = pos->x;
-	fixp sample_v = pos->y;
-	fixp delta_u = pos->dirx - ((short)(x - 160) * pos->diry >> 8);
-	fixp delta_v = pos->diry + ((short)(x - 160) * pos->dirx >> 8);
+	fixp_2in1 sample_vu = make_2in1(pos->y, pos->x);
+	fixp_2in1 delta_vu = make_2in1(
+		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
+		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
 
 	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
-	sample_u += STEPS_MIN * delta_u;
-	sample_v += STEPS_MIN * delta_v;
+	for (int i=0; i<STEPS_MIN; i++) {
+		sample_vu = add_2in1(sample_vu, delta_vu);
+	}
 
 	short sample_y = 200;
 #ifdef ADAPTIVE_SAMPLING
 	short prev_sample_y = 200;
 	short prev_prev_sample_y = 200;
-	fixp prev_sample_u = 0;
-	fixp prev_sample_v = 0;
+	fixp_2in1 prev_sample_vu = 0;
 #ifdef PROGRESSIVE_STEPSIZE
-	fixp prev_delta_u = 0;
-	fixp prev_delta_v = 0;
+	fixp_2in1 prev_delta_vu = 0;
 #endif
 	int prev_z = 0;
 #endif
@@ -325,7 +336,10 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned short height_color = combined_lin[(((unsigned short)sample_v & ~FIXP_FRACT_MASK) << 2) | fixp_uint(sample_u)];
+			unsigned int index =
+				((sample_vu & 0xff800000) >> 14) |
+				((sample_vu & 0x0000ff80) >> 7);
+			unsigned short height_color = combined_lin[index];
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
@@ -339,13 +353,11 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 					// If this sample is visible, backtrack
 					if (sample_y <= y) {
 						z = prev_z;
-						sample_u = prev_sample_u;
-						sample_v = prev_sample_v;
+						sample_vu = prev_sample_vu;
 						sample_y = prev_sample_y;
 						prev_sample_y = prev_prev_sample_y;
 #ifdef PROGRESSIVE_STEPSIZE
-						delta_u = prev_delta_u;
-						delta_v = prev_delta_v;
+						delta_vu = prev_delta_vu;
 #endif
 					}
 				}
@@ -355,23 +367,19 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				step_size += step_size + (step_size >> 2) + 1;
 			}
 
-			prev_sample_u = sample_u;
-			prev_sample_v = sample_v;
+			prev_sample_vu = sample_vu;
 #ifdef PROGRESSIVE_STEPSIZE
-			prev_delta_u = delta_u;
-			prev_delta_v = delta_v;
+			prev_delta_vu = delta_vu;
 #endif
 			prev_z = z;
 #endif
 
 			for(int i=0; i<step_size; i++) {
 				z++;
-				sample_u += delta_u;
-				sample_v += delta_v;
+				sample_vu = add_2in1(sample_vu, delta_vu);
 #ifdef PROGRESSIVE_STEPSIZE
 				if (TRIGGERS_PROGRESSION(z)) {
-					delta_u = progression(delta_u);
-					delta_v = progression(delta_v);
+					delta_vu = add_2in1(delta_vu, delta_vu);
 				}
 #endif
 			}
@@ -389,7 +397,11 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 			// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 			// a stipple pattern for emulating fog. If full opacity, optimize by recycling the
 			// pixel data along the full pixel height of the sample.
+#if DISTANCE_FOG
 			unsigned char opacity = opacity_table[z];
+#else
+			unsigned char opacity = 7;
+#endif
 			unsigned int movep_data = pdata_table[y&7][opacity][color];
 			move_p(pBlock, movep_data);
 			pBlock -= 160*LINES_SKIP;
