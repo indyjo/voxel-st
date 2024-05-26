@@ -287,6 +287,30 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
+
+// Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
+// the (combined_lin) sample buffer.
+// This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
+inline unsigned long to_offset(fixp_2in1 vu) {
+	unsigned long result, tmp;
+	asm (
+		"move.l %2, %1\n\t"
+		// We want the 'u' coordinate in bits 2..10.
+		// Starting form bit 16, we need a shift of 6 bits to the right.
+		"lsr.l #6, %1\n\t"
+		"move.l %1, %0\n\t"
+		"and.l #0x0003fe, %1\n\t"
+		// We want the 'v' coordinate in bits 11..19.
+		// Starting from bit 26, we need a shift of 7 bits to the right.
+		"lsr.l #7, %0\n\t"
+		"and.l #0x07fc00, %0\n\t"
+		"or.l %1,%0"
+	: "=d" (result), "=d" (tmp)
+	: "d" (vu)
+	: "cc");
+	return result;
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
@@ -338,10 +362,8 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned int index =
-				((sample_vu & 0xff800000) >> 14) |
-				((sample_vu & 0x0000ff80) >> 7);
-			unsigned short height_color = combined_lin[index];
+			unsigned int index = to_offset(sample_vu);
+			unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
 			color = height_color >> 8;
