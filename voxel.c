@@ -287,7 +287,6 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
-
 // Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
 // the (combined_lin) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
@@ -347,6 +346,8 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
 	unsigned char * pBlock = pixel_block_address(out, x, 199);
 
+	unsigned int index_mask = 0x7ffff;
+
 	short y = 199;
 	while(y >= 0 && z < STEPS_MAX) {
 		// Find the next sample to display.
@@ -362,7 +363,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				break;
 			}
 #endif
-			unsigned int index = to_offset(sample_vu);
+			unsigned int index = to_offset(sample_vu) & index_mask;
 			unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
 			short h = height_color & 0xff;
 			sample_y = y_table[z][h + ytable_offset] + y_offset;
@@ -404,6 +405,9 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #ifdef PROGRESSIVE_STEPSIZE
 				if (TRIGGERS_PROGRESSION(z)) {
 					delta_vu = add_2in1(delta_vu, delta_vu);
+					// shift the index mask one position to the left and clear bits
+					// 2, and 11.
+					index_mask = (index_mask << 1) & 0x7fbfd;
 				}
 #endif
 			}
