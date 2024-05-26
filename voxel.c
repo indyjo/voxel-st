@@ -41,6 +41,8 @@ typedef unsigned int fixp_2in1;
 #define STEPS_MIN 4
 #define STEPS_MAX 64
 
+#define FOG_START (STEPS_MAX*5/8)
+
 // Uncomment to introduce some curvature towards the horizon, like on a spherical planet
 #define CURVED_TERRAIN
 
@@ -210,9 +212,9 @@ void build_tables() {
 		if (TRIGGERS_PROGRESSION(z))
 			step = progression(step);
 #endif
-		int rel_dist = z - STEPS_MAX/2;
+		int rel_dist = z - FOG_START;
 		if (rel_dist < 0) rel_dist = 0;
-		int max_dist = STEPS_MAX - STEPS_MAX/2;
+		int max_dist = STEPS_MAX - FOG_START;
 		opacity_table[z] = 8 * (max_dist - rel_dist - 1) / max_dist;
 	}
 
