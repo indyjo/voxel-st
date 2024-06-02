@@ -79,7 +79,7 @@ signed short y_table[STEPS_MAX][256+256];
 
 // pdata_table[y][opacity][color] contains pixel data prepared for movep.
 // 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
-unsigned int pdata_table[8][8][16];
+unsigned int pdata_table[8][8][256];
 
 // An opacity value between 0 and 7 for each distance step.
 unsigned char opacity_table[STEPS_MAX];
@@ -240,16 +240,31 @@ void build_tables() {
 	};
 	for (int y = 0; y < 8; y++) {
 		for (int opacity = 0; opacity < 8; opacity++) {
-			unsigned int bits = 0;
+			unsigned int odd = 0x55555555;
+			unsigned int evn = 0xaaaaaaaa;
+			unsigned int mask = 0;
 			for (int x=0; x<8; x++) {
-				if (bayer[y][x] < (opacity+1) * 8) bits |= 1 << x;
+				if (bayer[y][x] < (opacity+1) * 8) mask |= 1 << x;
 			}
-			for (int color = 0; color < 16; color++) {
-				pdata_table[y][opacity][color] = 0
-					| ((color&1) ? bits << 24 : 0)
-					| ((color&2) ? bits << 16 : 0)
-					| ((color&4) ? bits <<  8 : 0)
-					| ((color&8) ? bits <<  0 : 0);
+			for (int color1 = 0; color1 < 16; color1++) {
+				for (int color2 = 0; color2 <= color1; color2++) {
+					int bits = mask & evn;
+					int index = ((color2 - color1) & 15) * 16 + color1;
+					pdata_table[y][opacity][index] = 0
+						| ((color1&1) ? bits << 24 : 0)
+						| ((color1&2) ? bits << 16 : 0)
+						| ((color1&4) ? bits <<  8 : 0)
+						| ((color1&8) ? bits <<  0 : 0);
+					bits = mask & odd;
+					pdata_table[y][opacity][index] |= 0
+						| ((color2&1) ? bits << 24 : 0)
+						| ((color2&2) ? bits << 16 : 0)
+						| ((color2&4) ? bits <<  8 : 0)
+						| ((color2&8) ? bits <<  0 : 0);
+					int index2 = ((color1 - color2) & 15) * 16 + color2;
+					pdata_table[y][opacity][index2] = pdata_table[y][opacity][index];
+				}
+
 			}
 		}
 	}
