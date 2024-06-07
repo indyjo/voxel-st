@@ -74,8 +74,9 @@ const unsigned short *combined_lin = &combined[0][0];
 // The maximum height occuring in the heightfield.
 unsigned char max_height;
 
+#define HEIGHT_VALUES (256+256)
 // y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
-signed short y_table[STEPS_MAX][256+256];
+signed short y_table[STEPS_MAX][HEIGHT_VALUES];
 
 // pdata_table[y][opacity][color] contains pixel data prepared for movep.
 // 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
@@ -337,9 +338,13 @@ inline unsigned long to_offset(fixp_2in1 vu) {
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
 short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset) {
-	short ytable_offset = 256 - player_height;
-	short max_height_ytable_index = max_height + ytable_offset;
 	set_color(0xff0);
+	short ytable_offset = 256 - player_height;
+
+	// Add ytable_offset now instead of per sample.
+        // y_table_with_offset works like y_table but increased by a constant so that it adjusts for player height.
+	short (*y_table_with_offset)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
+
 	fixp_2in1 sample_vu = make_2in1(pos->y, pos->x);
 	fixp_2in1 delta_vu = make_2in1(
 		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
@@ -381,7 +386,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 			set_color(0x00f);
 			//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
 #ifdef OCCLUSION_CULLING
-			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table[z][max_height_ytable_index]) {
+			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_with_offset[z][max_height]) {
 				z = STEPS_MAX;
 				//for (int xp=x; xp<x+8; xp++) put_pixel(out, 15, xp, y);
 				break;
@@ -390,7 +395,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 			unsigned int index = to_offset(sample_vu) & index_mask;
 			unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
 			short h = height_color & 0xff;
-			sample_y = y_table[z][h + ytable_offset] + y_offset;
+			sample_y = y_table_with_offset[z][h] + y_offset;
 			color = height_color >> 8;
 
 #ifdef ADAPTIVE_SAMPLING				
