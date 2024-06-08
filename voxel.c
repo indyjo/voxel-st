@@ -447,30 +447,36 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 			prev_prev_sample_y = prev_sample_y;
 			prev_sample_y = sample_y;
 #endif
+		} else if (z < FOG_START) {
+			// We found a terrain sample that covers the current y, and it is not foggy.
+			set_color(0xf30);
+
+			// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
+                        // pixel data once from the table.
+			unsigned int movep_data = pdata_table[0][7][color];
+			if (sample_y < 0) sample_y = 0;
+			while (y >= sample_y) {
+				move_p(pBlock, movep_data);
+				pBlock -= 160*LINES_SKIP;
+				y -= LINES_SKIP;
+			}
 		} else {
-			// We found a terrain sample that covers the current y.
-			set_color(0xf00);
+			// We found a terrain sample that covers the current y, and it is in the foggy distance regipn.
+			set_color(0x0ff);
 
 			// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
-			// a stipple pattern for emulating fog. If full opacity, optimize by recycling the
-			// pixel data along the full pixel height of the sample.
+			// a stipple pattern for emulating fog.
 #if DISTANCE_FOG
 			unsigned char opacity = opacity_table[z];
 #else
 			unsigned char opacity = 7;
 #endif
-			unsigned int movep_data = pdata_table[y&7][opacity][color];
-			move_p(pBlock, movep_data);
-			pBlock -= 160*LINES_SKIP;
-			y -= LINES_SKIP;
-			// Is full opacity? Then also draw rest of the column in a tight loop.
-			if (opacity == 7) {
-				if (sample_y < 0) sample_y = 0;
-				while (y >= sample_y) {
-					move_p(pBlock, movep_data);
-					pBlock -= 160*LINES_SKIP;
-					y -= LINES_SKIP;
-				}
+			if (sample_y < 0) sample_y = 0;
+			while (y >= sample_y) {
+				unsigned int movep_data = pdata_table[y&7][opacity][color];
+				move_p(pBlock, movep_data);
+				pBlock -= 160*LINES_SKIP;
+				y -= LINES_SKIP;
 			}
 		}
 	}
