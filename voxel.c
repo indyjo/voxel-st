@@ -46,9 +46,6 @@ typedef unsigned int fixp_2in1;
 // Uncomment to introduce some curvature towards the horizon, like on a spherical planet
 #define CURVED_TERRAIN
 
-// Uncomment to enable adaptive step width sampling
-//#define ADAPTIVE_SAMPLING
-
 // Uncomment to enable progressing step size
 #define PROGRESSIVE_STEPSIZE
 
@@ -365,10 +362,6 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #endif
 	int prev_z = 0;
 #endif
-	
-	int step_size = 1;
-	int z = STEPS_MIN;
-
 	unsigned short color = 0;
 
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
@@ -378,108 +371,72 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	unsigned int index_mask = 0x7ffff;
 
 	short y = 199;
-	while(y >= 0 && z < STEPS_MAX) {
-		// Find the next sample to display.
-		if (y < sample_y) {
-			// We haven't yet found the terrain sample that covers the pixel. Try the next sample.
+	int z = STEPS_MIN;
+	while(z < STEPS_MAX) {
+		set_color(0x00f);
 
-			set_color(0x00f);
-			//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
+		//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
 #ifdef OCCLUSION_CULLING
-			if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_with_offset[z][max_height]) {
-				z = STEPS_MAX;
-				//for (int xp=x; xp<x+8; xp++) put_pixel(out, 15, xp, y);
-				break;
-			}
+		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_with_offset[z][max_height]) {
+			goto done;
+		}
 #endif
-			unsigned int index = to_offset(sample_vu) & index_mask;
-			unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
-			short h = height_color & 0xff;
-			sample_y = y_table_with_offset[z][h] + y_offset;
+		unsigned int index = to_offset(sample_vu) & index_mask;
+		unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
+		short h = height_color & 0xff;
+		sample_y = y_table_with_offset[z][h] + y_offset;
+		if (sample_y < y) {
+			// Found a sample to display. Depending on z, the sample is in the foggy region or not.
 			color = height_color >> 8;
+			if (z < FOG_START) {
+				// We found a terrain sample that covers the current y, and it is not foggy.
+				set_color(0xf30);
 
-#ifdef ADAPTIVE_SAMPLING				
-			// Adaptive step size handling
-			if (sample_y < prev_sample_y - 4) {
-				// Make smaller steps if the current step size causes large pixel steps
-				if (step_size > 1) {
-					step_size = step_size >> 1;
-					// If this sample is visible, backtrack
-					if (sample_y <= y) {
-						z = prev_z;
-						sample_vu = prev_sample_vu;
-						sample_y = prev_sample_y;
-						prev_sample_y = prev_prev_sample_y;
-#ifdef PROGRESSIVE_STEPSIZE
-						delta_vu = prev_delta_vu;
-#endif
-					}
+				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
+				// pixel data once from the table.
+				unsigned int movep_data = pdata_table[0][7][color];
+				if (sample_y < 0) sample_y = 0;
+				while (y >= sample_y) {
+					move_p(pBlock, movep_data);
+					pBlock -= 160*LINES_SKIP;
+					y -= LINES_SKIP;
 				}
-				
-			} else if (sample_y + 3 >= prev_sample_y) {
-				// Make larger steps if the current step size causes small or negative pixel steps
-				step_size += step_size + (step_size >> 2) + 1;
-			}
+			} else {
+				// We found a terrain sample that covers the current y, and it is in the foggy distance region.
+				set_color(0x0ff);
 
-			prev_sample_vu = sample_vu;
-#ifdef PROGRESSIVE_STEPSIZE
-			prev_delta_vu = delta_vu;
-#endif
-			prev_z = z;
-#endif
-
-			for(int i=0; i<step_size; i++) {
-				z++;
-				sample_vu = add_2in1(sample_vu, delta_vu);
-#ifdef PROGRESSIVE_STEPSIZE
-				if (TRIGGERS_PROGRESSION(z)) {
-					delta_vu = add_2in1(delta_vu, delta_vu);
-					// shift the index mask one position to the left and clear bits
-					// 2, and 11.
-					index_mask = (index_mask << 1) & 0x7fbfd;
-				}
-#endif
-			}
-
-			
-			// remember y for next sample
-#ifdef ADAPTIVE_SAMPLING
-			prev_prev_sample_y = prev_sample_y;
-			prev_sample_y = sample_y;
-#endif
-		} else if (z < FOG_START) {
-			// We found a terrain sample that covers the current y, and it is not foggy.
-			set_color(0xf30);
-
-			// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
-                        // pixel data once from the table.
-			unsigned int movep_data = pdata_table[0][7][color];
-			if (sample_y < 0) sample_y = 0;
-			while (y >= sample_y) {
-				move_p(pBlock, movep_data);
-				pBlock -= 160*LINES_SKIP;
-				y -= LINES_SKIP;
-			}
-		} else {
-			// We found a terrain sample that covers the current y, and it is in the foggy distance regipn.
-			set_color(0x0ff);
-
-			// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
-			// a stipple pattern for emulating fog.
+				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
+				// a stipple pattern for emulating fog.
 #if DISTANCE_FOG
-			unsigned char opacity = opacity_table[z];
+				unsigned char opacity = opacity_table[z];
 #else
-			unsigned char opacity = 7;
+				unsigned char opacity = 7;
 #endif
-			if (sample_y < 0) sample_y = 0;
-			while (y >= sample_y) {
-				unsigned int movep_data = pdata_table[y&7][opacity][color];
-				move_p(pBlock, movep_data);
-				pBlock -= 160*LINES_SKIP;
-				y -= LINES_SKIP;
+				if (sample_y < 0) sample_y = 0;
+				while (y >= sample_y) {
+					unsigned int movep_data = pdata_table[y&7][opacity][color];
+					move_p(pBlock, movep_data);
+					pBlock -= 160*LINES_SKIP;
+					y -= LINES_SKIP;
+				}
 			}
 		}
+
+		// Try the next sample.
+		set_color(0x33f);
+		z++;
+		sample_vu = add_2in1(sample_vu, delta_vu);
+#ifdef PROGRESSIVE_STEPSIZE
+		if (TRIGGERS_PROGRESSION(z)) {
+			delta_vu = add_2in1(delta_vu, delta_vu);
+			// shift the index mask one position to the left and clear bits
+			// 2, and 11.
+			index_mask = (index_mask << 1) & 0x7fbfd;
+		}
+#endif
 	}
+
+done:
 	return y;
 }
 
