@@ -65,9 +65,6 @@ extern unsigned char height[512][512];
 // it's more efficient to have a unified word array since the ST reads a word anyway.
 unsigned short combined[HEIGHT][WIDTH];
 
-// Linear adressing can be more efficient.
-const unsigned short *combined_lin = &combined[0][0];
-
 // The maximum height occuring in the heightfield.
 unsigned char max_height;
 
@@ -75,9 +72,9 @@ unsigned char max_height;
 // y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
 signed short y_table[STEPS_MAX][HEIGHT_VALUES];
 
-// pdata_table[y][opacity][color] contains pixel data prepared for movep.
+// pdata_table[opacity][color][y] contains pixel data prepared for movep.
 // 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
-unsigned int pdata_table[8][8][256];
+unsigned int pdata_table[8][256][8];
 
 // An opacity value between 0 and 7 for each distance step.
 unsigned char opacity_table[STEPS_MAX];
@@ -86,13 +83,13 @@ unsigned char opacity_table[STEPS_MAX];
 signed short horizon[320];
 
 // Utility functions for profiling by setting palette color 0
-unsigned short *hw_palette = (unsigned short *) 0xff8240;
+volatile unsigned short *hw_palette = (unsigned short *) 0xff8240;
 
-unsigned short get_color() {
+inline unsigned short get_color() {
 	return *hw_palette;
 }
 
-void set_color(unsigned short rgb) {
+inline void set_color(unsigned short rgb) {
 #ifdef COLORBAR_PROFILING
 	*hw_palette = rgb;
 #endif
@@ -256,19 +253,19 @@ void build_tables() {
 				for (int color2 = 0; color2 <= color1; color2++) {
 					int bits = mask & evn;
 					int index = ((color2 - color1) & 15) * 16 + color1;
-					pdata_table[y][opacity][index] = 0
+					pdata_table[opacity][index][y] = 0
 						| ((color1&1) ? bits << 24 : 0)
 						| ((color1&2) ? bits << 16 : 0)
 						| ((color1&4) ? bits <<  8 : 0)
 						| ((color1&8) ? bits <<  0 : 0);
 					bits = mask & odd;
-					pdata_table[y][opacity][index] |= 0
+					pdata_table[opacity][index][y] |= 0
 						| ((color2&1) ? bits << 24 : 0)
 						| ((color2&2) ? bits << 16 : 0)
 						| ((color2&4) ? bits <<  8 : 0)
 						| ((color2&8) ? bits <<  0 : 0);
 					int index2 = ((color1 - color2) & 15) * 16 + color2;
-					pdata_table[y][opacity][index2] = pdata_table[y][opacity][index];
+					pdata_table[opacity][index2][y] = pdata_table[opacity][index][y];
 				}
 
 			}
@@ -276,26 +273,6 @@ void build_tables() {
 	}
 
 	for (int x=0; x<320; x++) horizon[x] = -1;
-}
-
-// Erase every nth pixel (starting at x0) within the containing 16px-aligned 16px column of the screen.
-// It turned out to be efficient to first use this function to clear all to-be-filled pixel in the column
-// and later apply color using or_pixel(...).
-inline void erase_column(unsigned short *out, int x0, int nth) {
-	unsigned short mask = 0;
-	out += (x0 >> 4) << 2;
-	x0 = x0 & 15;
-	for (int x=x0; x<16; x+=nth) {
-		mask |= 1 << (15-x);
-	}
-	mask = ~mask;
-	for (int y=0; y<200; y++) {
-		*out++ &= mask;
-		*out++ &= mask;
-		*out++ &= mask;
-		*out++ &= mask;
-		out += 76;
-	}
 }
 
 // Pointer to the first of the 8 bytes of memory in pixel buffer out which contain the pixel at line y, column x
@@ -309,14 +286,14 @@ inline void move_p(unsigned char *p, unsigned int data) {
 }
 
 // Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
-// the (combined_lin) sample buffer.
+// the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
 inline unsigned long to_offset(fixp_2in1 vu) {
 	unsigned long result, tmp;
 	asm (
 		"move.l %2, %1\n\t"
 		// We want the 'u' coordinate in bits 2..10.
-		// Starting form bit 16, we need a shift of 6 bits to the right.
+		// Starting from bit 16, we need a shift of 6 bits to the right.
 		"lsr.l #6, %1\n\t"
 		"move.l %1, %0\n\t"
 		"and.l #0x0003fe, %1\n\t"
@@ -352,24 +329,13 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 		sample_vu = add_2in1(sample_vu, delta_vu);
 	}
 
-	short sample_y = 200;
-#ifdef ADAPTIVE_SAMPLING
-	short prev_sample_y = 200;
-	short prev_prev_sample_y = 200;
-	fixp_2in1 prev_sample_vu = 0;
-#ifdef PROGRESSIVE_STEPSIZE
-	fixp_2in1 prev_delta_vu = 0;
-#endif
-	int prev_z = 0;
-#endif
-	unsigned short color = 0;
-
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
 	unsigned char * pBlock = pixel_block_address(out, x, 199);
 
 	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
 	unsigned int index_mask = 0x7ffff;
 
+	// y coordinate of the pixel currently being filled in the column.
 	short y = 199;
 	int z = STEPS_MIN;
 	while(z < STEPS_MAX) {
@@ -378,23 +344,22 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 		//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
 #ifdef OCCLUSION_CULLING
 		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_with_offset[z][max_height]) {
-			goto done;
+			break;
 		}
 #endif
 		unsigned int index = to_offset(sample_vu) & index_mask;
-		unsigned short height_color = *((unsigned short*)((char*)combined_lin + index));
+		unsigned short height_color = *((unsigned short*)((char*)combined + index));
 		short h = height_color & 0xff;
-		sample_y = y_table_with_offset[z][h] + y_offset;
-		if (sample_y < y) {
+		short sample_y = y_table_with_offset[z][h] + y_offset;
+		if (sample_y <= y) {
 			// Found a sample to display. Depending on z, the sample is in the foggy region or not.
-			color = height_color >> 8;
 			if (z < FOG_START) {
 				// We found a terrain sample that covers the current y, and it is not foggy.
 				set_color(0xf30);
 
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
-				unsigned int movep_data = pdata_table[0][7][color];
+				unsigned int movep_data = pdata_table[7][height_color >> 8][0];
 				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
@@ -412,9 +377,10 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #else
 				unsigned char opacity = 7;
 #endif
+				unsigned int* pdata_entry = &pdata_table[opacity][height_color >> 8][0];
 				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
-					unsigned int movep_data = pdata_table[y&7][opacity][color];
+					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
 					y -= LINES_SKIP;
@@ -436,7 +402,6 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #endif
 	}
 
-done:
 	return y;
 }
 
