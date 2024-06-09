@@ -82,6 +82,9 @@ unsigned char opacity_table[STEPS_MAX];
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
 signed short horizon[320];
 
+// For every column, the view window starts at view_max (bottom) and ends at view_min (top); 
+short view_min[40], view_max[40];
+
 // Utility functions for profiling by setting palette color 0
 volatile unsigned short *hw_palette = (unsigned short *) 0xff8240;
 
@@ -205,7 +208,7 @@ void build_tables() {
 	fixp step = FIXP(1,0);
 	for (int z=1; z<STEPS_MAX; z++) {
 		for (int h=0; h<256+256; h++) {
-			y_table[z][h] = 120 - 70 * (h - 256) / fixp_int(dist);
+			y_table[z][h] = 60 - 70 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
 			y_table[z][h] += 70 * fixp_int(dist) / 400;
 #endif
@@ -272,7 +275,26 @@ void build_tables() {
 		}
 	}
 
-	for (int x=0; x<320; x++) horizon[x] = -1;
+
+	// These arrays shape the contours of the cockpit windshield.
+	short top_envelope[20] = {
+		16, 14, 12, 11, 10,
+		9, 9, 8, 8, 8,
+		8, 8, 8, 9, 10,
+		11, 12, 12, 12, 12
+	};
+	short bottom_envelope[20] = {
+		9, 7, 6, 5, 5,
+		5, 6, 7, 8, 8,
+		8, 8, 8, 6, 4,
+		2, 0, 1, 1, 1
+	};
+	
+	for (int i=0; i<20; i++) {
+		view_min[i] = view_min[39-i] = top_envelope[i];
+	        view_max[i] = view_max[39-i] = 140 - bottom_envelope[i];	
+	}
+	for (int x=0; x<320; x++) horizon[x] = view_min[x/8]-1;
 }
 
 // Pointer to the first of the 8 bytes of memory in pixel buffer out which contain the pixel at line y, column x
@@ -311,7 +333,7 @@ inline unsigned long to_offset(fixp_2in1 vu) {
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
-short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset) {
+short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset, short y_max, short y_min) {
 	set_color(0xff0);
 	short ytable_offset = 256 - player_height;
 
@@ -330,15 +352,15 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	}
 
 	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
-	unsigned char * pBlock = pixel_block_address(out, x, 199);
+	unsigned char * pBlock = pixel_block_address(out, x, y_max);
 
 	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
 	unsigned int index_mask = 0x7ffff;
 
 	// y coordinate of the pixel currently being filled in the column.
-	short y = 199;
+	short y = y_max;
 	int z = STEPS_MIN;
-	while(z < STEPS_MAX) {
+	while(z < STEPS_MAX && y >= y_min) {
 		set_color(0x00f);
 
 		//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
@@ -360,7 +382,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
 				unsigned int movep_data = pdata_table[7][height_color >> 8][0];
-				if (sample_y < 0) sample_y = 0;
+				if (sample_y < y_min) sample_y = y_min;
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
@@ -378,7 +400,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				unsigned char opacity = 7;
 #endif
 				unsigned int* pdata_entry = &pdata_table[opacity][height_color >> 8][0];
-				if (sample_y < 0) sample_y = 0;
+				if (sample_y < y_min) sample_y = y_min;
 				while (y >= sample_y) {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
@@ -405,16 +427,18 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	return y;
 }
 
+void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
+	unsigned char * pBlock = pixel_block_address(out, x, y);
+	unsigned int movep_data = pdata_table[7][color][0];
+	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
+		move_p(pBlock, movep_data);
+		pBlock += 160*LINES_SKIP;
+	}
+}
+
 
 short patch_sky(unsigned short *out, short x, short y) {
-	unsigned char * pBlock = pixel_block_address(out, x, y);
-	short remaining_lines = y - horizon[x];
-	unsigned int movep_data = 0;
-	while (remaining_lines > 0) {
-		move_p(pBlock, movep_data);
-		pBlock -= 160 * LINES_SKIP;
-		remaining_lines -= LINES_SKIP;
-	}
+	fill_column(out, x, horizon[x]+1, y - horizon[x], 0);
 	horizon[x] = y;
 }
 
@@ -443,6 +467,10 @@ int main(int argc, char **argv) {
 	unsigned short *screen = Physbase();
 	draw_image2(screen, colors);
 	clear_screen(screen);
+	for (int i=0; i<40; i++) {
+		fill_column(screen, i*8, 0, view_min[i], 1);
+		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 1);
+	}
 	unsigned long t0 = *_hz_200;
 	int last_player_altitude = 40;
 	for(int i=0; i<FRAMES; i++) {
@@ -463,7 +491,7 @@ int main(int argc, char **argv) {
 #else
 			int y_offset = 0;
 #endif
-			short y = render(&pos, screen, player_altitude, x, y_offset);
+			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
 			patch_sky(screen, x, y);
 		}
 		set_color(saved_color);
@@ -474,7 +502,7 @@ int main(int argc, char **argv) {
 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
 		if (pos.speed > 0) pos.speed -= drag;
 		else pos.speed += drag;
-		fixp rot = (160 - mouse_x) >> 3;
+		fixp rot = (160 - mouse_x) >> 4;
 		pos.dirx += fixp_mul(rot, pos.diry);
 		pos.diry -= fixp_mul(rot, pos.dirx);
 		
