@@ -313,17 +313,22 @@ inline void move_p(unsigned char *p, unsigned int data) {
 inline unsigned long to_offset(fixp_2in1 vu) {
 	unsigned long result, tmp;
 	asm (
-		"move.l %2, %1\n\t"
+		// Initialize tmp with a bitmask that preserves the most-significant 9 bits of the lo-word.
+		"moveq #0xffffff80, %1\n\t"
+
+		// We want the 'v' coordinate in bits 11..19.
+		// Instead of (slowly) shifting by 13 bits to the right, we swap and shift 3 bits to the left.
+		"move.l %2, %0\n\t"
+		"swap %0\n\t"
+		"and.w %1, %0\n\t"
+		"lsl.l #3, %0\n\t"
+
 		// We want the 'u' coordinate in bits 2..10.
 		// Starting from bit 16, we need a shift of 6 bits to the right.
-		"lsr.l #6, %1\n\t"
-		"move.l %1, %0\n\t"
-		"and.l #0x0003fe, %1\n\t"
-		// We want the 'v' coordinate in bits 11..19.
-		// Starting from bit 26, we need a shift of 7 bits to the right.
-		"lsr.l #7, %0\n\t"
-		"and.l #0x07fc00, %0\n\t"
-		"or.l %1,%0"
+		// We can use word-sized instructions for this.
+		"and.w %2, %1\n\t"
+		"lsr.w #6, %1\n\t"
+		"or.w %1,%0"
 	: "=d" (result), "=d" (tmp)
 	: "d" (vu)
 	: "cc");
