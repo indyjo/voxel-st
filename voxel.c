@@ -61,9 +61,17 @@ extern void set_palette();
 extern unsigned char colors[512][512];
 extern unsigned char height[512][512];
 
+typedef union {
+	unsigned short both;
+	struct {
+		unsigned char color;
+		unsigned char height;
+	};
+} sample_t;
+
 // Instead of having a byte array for height and a byte array for color,
 // it's more efficient to have a unified word array since the ST reads a word anyway.
-unsigned short combined[HEIGHT][WIDTH];
+sample_t combined[HEIGHT][WIDTH];
 
 // The maximum height occuring in the heightfield.
 unsigned char max_height;
@@ -72,11 +80,17 @@ unsigned char max_height;
 // y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
 signed short y_table[STEPS_MAX][HEIGHT_VALUES];
 
-// pdata_table[opacity][color][y] contains pixel data prepared for movep.
-// 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
-unsigned int pdata_table[8][256][8];
+#define OPACITY_BITS 3
+#define OPACITY_STEPS (1<<OPACITY_BITS)
+#define OPACITY_MASK -(1<<(8-OPACITY_BITS))
+#define MAX_OPACITY (OPACITY_STEPS-1)
+#define MAX_OPACITY_PRESHIFTED (0xff & OPACITY_MASK)
 
-// An opacity value between 0 and 7 for each distance step.
+// pdata_table[color][opacity][y] contains pixel data prepared for movep.
+// 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
+unsigned int pdata_table[256][OPACITY_STEPS][8];
+
+// An opacity value between 0 and 255 for each distance step, with lower bits 0.
 unsigned char opacity_table[STEPS_MAX];
 
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
@@ -221,14 +235,15 @@ void build_tables() {
 		int rel_dist = z - FOG_START;
 		if (rel_dist < 0) rel_dist = 0;
 		int max_dist = STEPS_MAX - FOG_START;
-		opacity_table[z] = 8 * (max_dist - rel_dist - 1) / max_dist;
+		opacity_table[z] = (256 * (max_dist - rel_dist - 1) / max_dist) & OPACITY_MASK;
 	}
 
 	// Combine color and height arrays into a single array.
 	max_height = 0;
 	for (int y=0; y<HEIGHT; y++) {
 		for (int x=0; x<WIDTH; x++) {
-			combined[y][x] = (colors[y][x] << 8) | height[y][x];
+			combined[y][x].height = height[y][x];
+			combined[y][x].color = colors[y][x];
 			if (height[y][x] > max_height)
 				max_height = height[y][x];
 		}
@@ -245,30 +260,30 @@ void build_tables() {
 		{63,31,55,23,61,29,53,21}
 	};
 	for (int y = 0; y < 8; y++) {
-		for (int opacity = 0; opacity < 8; opacity++) {
+		for (int opacity = 0; opacity < OPACITY_STEPS; opacity++) {
 			unsigned int odd = 0x55555555;
 			unsigned int evn = 0xaaaaaaaa;
 			unsigned int mask = 0;
 			for (int x=0; x<8; x++) {
-				if (bayer[y][x] < (opacity+1) * 8) mask |= 1 << x;
+				if (bayer[y][x] < (opacity+1) * (64/OPACITY_STEPS)) mask |= 1 << x;
 			}
 			for (int color1 = 0; color1 < 16; color1++) {
 				for (int color2 = 0; color2 <= color1; color2++) {
 					int bits = mask & evn;
 					int index = ((color2 - color1) & 15) * 16 + color1;
-					pdata_table[opacity][index][y] = 0
+					pdata_table[index][opacity][y] = 0
 						| ((color1&1) ? bits << 24 : 0)
 						| ((color1&2) ? bits << 16 : 0)
 						| ((color1&4) ? bits <<  8 : 0)
 						| ((color1&8) ? bits <<  0 : 0);
 					bits = mask & odd;
-					pdata_table[opacity][index][y] |= 0
+					pdata_table[index][opacity][y] |= 0
 						| ((color2&1) ? bits << 24 : 0)
 						| ((color2&2) ? bits << 16 : 0)
 						| ((color2&4) ? bits <<  8 : 0)
 						| ((color2&8) ? bits <<  0 : 0);
 					int index2 = ((color1 - color2) & 15) * 16 + color2;
-					pdata_table[opacity][index2][y] = pdata_table[opacity][index][y];
+					pdata_table[index2][opacity][y] = pdata_table[index][opacity][y];
 				}
 
 			}
@@ -335,16 +350,22 @@ inline unsigned long to_offset(fixp_2in1 vu) {
 	return result;
 }
 
+inline unsigned int get_pdata(sample_t sample, unsigned short opacity_preshifted, short y) {
+	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted + ((y&7) << 2);
+	return *(unsigned int *)((char*)pdata_table + offset);
+}
+
+inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshifted) {
+	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted;
+	return (unsigned int *)((char*)pdata_table + offset);
+}
+
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
 short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset, short y_max, short y_min) {
 	set_color(0xff0);
 	short ytable_offset = 256 - player_height;
-
-	// Add ytable_offset now instead of per sample.
-        // y_table_with_offset works like y_table but increased by a constant so that it adjusts for player height.
-	short (*y_table_with_offset)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
 
 	fixp_2in1 sample_vu = make_2in1(pos->y, pos->x);
 	fixp_2in1 delta_vu = make_2in1(
@@ -362,22 +383,29 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
 	unsigned int index_mask = 0x7ffff;
 
+	// Offset the y coordinate system so that y_min is at 0, so that y_min is no longer needed in a register.
+	y_offset -= y_min;
 	// y coordinate of the pixel currently being filled in the column.
-	short y = y_max;
-	int z = STEPS_MIN;
-	while(z < STEPS_MAX && y >= y_min) {
+	short y = y_max - y_min;
+	unsigned short z = STEPS_MIN;
+
+	// Shift y_table by ytable_offset and z.
+	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z] + ytable_offset);
+
+	while(z < STEPS_MAX /*&& y >= y_min*/) {
 		set_color(0x00f);
 
 		//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
+		if (y < 0) goto done;
 #ifdef OCCLUSION_CULLING
-		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_with_offset[z][max_height]) {
-			break;
+		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_shifted[0][max_height]) {
+			goto done;
 		}
 #endif
 		unsigned int index = to_offset(sample_vu) & index_mask;
-		unsigned short height_color = *((unsigned short*)((char*)combined + index));
-		short h = height_color & 0xff;
-		short sample_y = y_table_with_offset[z][h] + y_offset;
+		sample_t sample;
+		sample.both = ((sample_t*)((char*)combined + index))->both;
+		short sample_y = y_table_shifted[0][sample.height] + y_offset;
 		if (sample_y <= y) {
 			// Found a sample to display. Depending on z, the sample is in the foggy region or not.
 			if (z < FOG_START) {
@@ -386,8 +414,8 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
-				unsigned int movep_data = pdata_table[7][height_color >> 8][0];
-				if (sample_y < y_min) sample_y = y_min;
+				register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
+				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
@@ -400,12 +428,12 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 				// a stipple pattern for emulating fog.
 #if DISTANCE_FOG
-				unsigned char opacity = opacity_table[z];
+				unsigned char opacity_preshifted = opacity_table[z];
 #else
-				unsigned char opacity = 7;
+				unsigned char opacity_preshifted = MAX_OPACITY_PRESHIFTED;
 #endif
-				unsigned int* pdata_entry = &pdata_table[opacity][height_color >> 8][0];
-				if (sample_y < y_min) sample_y = y_min;
+				unsigned int* pdata_entry = pdata_offset(sample, opacity_preshifted);
+				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
@@ -418,6 +446,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 		// Try the next sample.
 		set_color(0x33f);
 		z++;
+		y_table_shifted++;
 		sample_vu = add_2in1(sample_vu, delta_vu);
 #ifdef PROGRESSIVE_STEPSIZE
 		if (TRIGGERS_PROGRESSION(z)) {
@@ -429,12 +458,13 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #endif
 	}
 
-	return y;
+done:
+	return y + y_min;
 }
 
 void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
 	unsigned char * pBlock = pixel_block_address(out, x, y);
-	unsigned int movep_data = pdata_table[7][color][0];
+	unsigned int movep_data = pdata_table[color][MAX_OPACITY][0];
 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
 		move_p(pBlock, movep_data);
 		pBlock += 160*LINES_SKIP;
@@ -482,7 +512,7 @@ int main(int argc, char **argv) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
 
-		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)] & 0xff;
+		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
 		int player_altitude = height_under_player + 20;
 		if (player_altitude > 255) player_altitude = 255;
 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
