@@ -2,6 +2,7 @@
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
 #include <stdio.h>
+#include "tga.h"
 
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
 // This way, the integral part maps directly to a coordinate from the 512x512 heightfield.
@@ -58,6 +59,7 @@ inline fixp progression(fixp x) {
 
 // Generated data (see other .c files)
 extern void set_palette();
+extern void set_cockpit_palette();
 extern unsigned char colors[512][512];
 extern unsigned char height[512][512];
 
@@ -112,12 +114,12 @@ inline void set_color(unsigned short rgb) {
 #endif
 } 
 
-void draw_image2(unsigned short *out, const unsigned char pixels[][512]) {
-	for (int y=0; y<200; y++) {
+void draw_image2(unsigned short *out, const unsigned char *pixels, int width, int height) {
+	for (int y=0; y<height; y++) {
 		for (int chunk=0; chunk<20; chunk++) {
 			unsigned short register plane0 = 0, plane1 = 0, plane2 = 0, plane3 = 0;
 			for (int x=0; x<16; x++) {
-				unsigned char register px = pixels[y][16*chunk+x];
+				unsigned char register px = pixels[y*width + 16*chunk + x];
 				plane0 = (plane0 << 1) | (px & 1);
 				px >>= 1;
 				plane1 = (plane1 << 1) | (px & 1);
@@ -299,15 +301,15 @@ void build_tables() {
 		11, 12, 12, 12, 12
 	};
 	short bottom_envelope[20] = {
-		9, 7, 6, 5, 5,
-		5, 6, 7, 8, 8,
-		8, 8, 8, 6, 4,
-		2, 0, 1, 1, 1
+		7, 6, 5, 4, 3,
+		2, 1, 1, 0, 0,
+		0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0,
 	};
 	
 	for (int i=0; i<20; i++) {
 		view_min[i] = view_min[39-i] = top_envelope[i];
-	        view_max[i] = view_max[39-i] = 140 - bottom_envelope[i];	
+	        view_max[i] = view_max[39-i] = 118 - bottom_envelope[i];	
 	}
 	for (int x=0; x<320; x++) horizon[x] = view_min[x/8]-1;
 }
@@ -496,18 +498,29 @@ int main(int argc, char **argv) {
 	linea0();
 	// Hide mouse cursor
 	lineaa();
-	build_tables();
-	printf("Tables computed.\n");
-        set_palette();
+	
+	set_palette();
 	unsigned short *screen = Physbase();
-	draw_image2(screen, colors);
+	draw_image2(screen, (unsigned char *)colors, 512, 200);
+
+	printf("Computing tables\n");
+	build_tables();
+	printf("Loading cockpit.tga\n");
+	image_t cockpit = read_tga("cockpit.tga");
+	
 	clear_screen(screen);
 	for (int i=0; i<40; i++) {
 		fill_column(screen, i*8, 0, view_min[i], 1);
 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 1);
 	}
+
+	install_interrupts();
+	int cockpit_y = 120;
+	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y);
+
 	unsigned long t0 = *_hz_200;
 	int last_player_altitude = 40;
+
 	for(int i=0; i<FRAMES; i++) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
@@ -557,6 +570,7 @@ int main(int argc, char **argv) {
 	unsigned long millis = (t1 - t0) * 5;
 	unsigned long millis_per_frame = millis / FRAMES;
 	printf("Rendering took %dms per frame.\n", millis_per_frame);
+	uninstall_interrupts();
 	
 	getchar();
 	return 0;

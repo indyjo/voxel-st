@@ -1,4 +1,4 @@
-(define (script-fu-export-palette img outfile-name)
+(define (script-fu-export-palette img outfile-name function-name)
         (let* (
                 (colmap (gimp-image-get-colormap img))
                 (num-bytes (car colmap))
@@ -10,8 +10,8 @@
           ;               " writing to "
           ;               outfile-name))
           (with-output-to-file outfile-name (lambda () (begin
-            (display "void set_palette() {\n")
-            (display "    unsigned short *pal = 0xff8240;\n")
+            (display (string-append "void " function-name "() {\n"))
+            (display "    unsigned short *pal = (unsigned short *)0xff8240;\n")
             (do ((i 0 (+ i 3)))
                 ((= i (vector-length colors)) #t)
               (let* ( (r (vector-ref colors i))
@@ -41,6 +41,7 @@
     "INDEXED"                                      ;image type that the script works on
     SF-IMAGE "Image" 0
     SF-FILENAME "Output file" "palette.c"
+    SF-STRING "Function name" "set_palette"
   )
 (script-fu-menu-register "script-fu-export-palette" "<Image>/File")
 
