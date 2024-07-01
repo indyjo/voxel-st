@@ -5,7 +5,7 @@ typedef struct {
 	short width, height;
 	unsigned char *pixels;
 	unsigned char *colors;
-	unsigned char numColors;
+	unsigned short numColors;
 } image_t;
 
 image_t read_tga(const char *filename);

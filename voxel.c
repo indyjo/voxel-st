@@ -2,6 +2,8 @@
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
 #include <stdio.h>
+#include "interrupt.h"
+#include "palette.h"
 #include "tga.h"
 
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
@@ -52,16 +54,12 @@ typedef unsigned int fixp_2in1;
 
 // Progression should happen every 2^N steps
 #define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
+#define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
+
 
 inline fixp progression(fixp x) {
 	return x + x;
 }
-
-// Generated data (see other .c files)
-extern void set_palette();
-extern void set_cockpit_palette();
-extern unsigned char colors[512][512];
-extern unsigned char height[512][512];
 
 typedef union {
 	unsigned short both;
@@ -114,12 +112,14 @@ inline void set_color(unsigned short rgb) {
 #endif
 } 
 
-void draw_image2(unsigned short *out, const unsigned char *pixels, int width, int height) {
+void draw_image2(unsigned short *out, const unsigned char *pixels, int width, int height, char dither) {
 	for (int y=0; y<height; y++) {
 		for (int chunk=0; chunk<20; chunk++) {
 			unsigned short register plane0 = 0, plane1 = 0, plane2 = 0, plane3 = 0;
 			for (int x=0; x<16; x++) {
 				unsigned char register px = pixels[y*width + 16*chunk + x];
+				if (dither && ((x & 1) != (y & 1)))
+					px = ((px & 15) + (px >> 4)) & 15;
 				plane0 = (plane0 << 1) | (px & 1);
 				px >>= 1;
 				plane1 = (plane1 << 1) | (px & 1);
@@ -154,6 +154,14 @@ unsigned short fixp_uint(fixp val) {
 
 fixp fixp_mul(fixp a, fixp b) {
 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+}
+
+// First-order approximation of 1/sqrt(x) around x0=1
+inline fixp fixp_sqrt_inv(fixp x) {
+	// f(1) = 1/sqrt(1)
+	// f'(x) = -0.5 * sqrt(x^(-3/2)) = -0.5 * sqrt(1/x^(3/2))
+	// f'(1) = -0.5
+	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
 }
 
 inline fixp_2in1 make_2in1(fixp a, fixp b) {
@@ -215,6 +223,14 @@ inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x,
 	//printf("put_pixel done.\n"); 
 }
 
+unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
+	return 0
+		| ((color&1) ? pattern << 24 : 0)
+		| ((color&2) ? pattern << 16 : 0)
+		| ((color&4) ? pattern <<  8 : 0)
+		| ((color&8) ? pattern <<  0 : 0);
+}
+
 // Prepares look-up tables
 void build_tables() {
 	// Prepare distance-dependent lookup tables.
@@ -240,14 +256,11 @@ void build_tables() {
 		opacity_table[z] = (256 * (max_dist - rel_dist - 1) / max_dist) & OPACITY_MASK;
 	}
 
-	// Combine color and height arrays into a single array.
 	max_height = 0;
 	for (int y=0; y<HEIGHT; y++) {
 		for (int x=0; x<WIDTH; x++) {
-			combined[y][x].height = height[y][x];
-			combined[y][x].color = colors[y][x];
-			if (height[y][x] > max_height)
-				max_height = height[y][x];
+			if (combined[y][x].height > max_height)
+				max_height = combined[y][x].height;
 		}
 	}
 	
@@ -265,27 +278,19 @@ void build_tables() {
 		for (int opacity = 0; opacity < OPACITY_STEPS; opacity++) {
 			unsigned int odd = 0x55555555;
 			unsigned int evn = 0xaaaaaaaa;
-			unsigned int mask = 0;
+			unsigned char mask = 0;
 			for (int x=0; x<8; x++) {
 				if (bayer[y][x] < (opacity+1) * (64/OPACITY_STEPS)) mask |= 1 << x;
 			}
 			for (int color1 = 0; color1 < 16; color1++) {
 				for (int color2 = 0; color2 <= color1; color2++) {
-					int bits = mask & evn;
-					int index = ((color2 - color1) & 15) * 16 + color1;
-					pdata_table[index][opacity][y] = 0
-						| ((color1&1) ? bits << 24 : 0)
-						| ((color1&2) ? bits << 16 : 0)
-						| ((color1&4) ? bits <<  8 : 0)
-						| ((color1&8) ? bits <<  0 : 0);
-					bits = mask & odd;
-					pdata_table[index][opacity][y] |= 0
-						| ((color2&1) ? bits << 24 : 0)
-						| ((color2&2) ? bits << 16 : 0)
-						| ((color2&4) ? bits <<  8 : 0)
-						| ((color2&8) ? bits <<  0 : 0);
+					unsigned int pdata = 0
+						| pdata_pattern(color1, mask & evn)
+						| pdata_pattern(color2, mask & odd)
+						| pdata_pattern(15, ~mask);
+					int index1 = ((color2 - color1) & 15) * 16 + color1;
 					int index2 = ((color1 - color2) & 15) * 16 + color2;
-					pdata_table[index2][opacity][y] = pdata_table[index][opacity][y];
+					pdata_table[index2][opacity][y] = pdata_table[index1][opacity][y] = pdata;
 				}
 
 			}
@@ -453,11 +458,13 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 #ifdef PROGRESSIVE_STEPSIZE
 		if (TRIGGERS_PROGRESSION(z)) {
 			delta_vu = add_2in1(delta_vu, delta_vu);
+		}
+#endif
+		if (TRIGGERS_MIPMAP(z)) {
 			// shift the index mask one position to the left and clear bits
 			// 2, and 11.
 			index_mask = (index_mask << 1) & 0x7fbfd;
 		}
-#endif
 	}
 
 done:
@@ -475,7 +482,7 @@ void fill_column(unsigned short *out, short x, short y, short height, unsigned c
 
 
 short patch_sky(unsigned short *out, short x, short y) {
-	fill_column(out, x, horizon[x]+1, y - horizon[x], 0);
+	fill_column(out, x, horizon[x]+1, y - horizon[x], 15);
 	horizon[x] = y;
 }
 
@@ -488,6 +495,110 @@ position pos = {
 	.speed = FIXP(1, 0),
 };
 
+typedef union {
+	struct { fixp x, y, z; } c;
+	fixp a[3];
+} vec3_t;
+vec3_t palette_vectors[16];
+
+fixp col2fixp(unsigned char color) {
+	signed char c = color - 128;
+	return c >> 1;
+}
+
+fixp vec3_dot(vec3_t a, vec3_t b) {
+	fixp result = 0;
+	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
+	return result;
+}
+
+inline vec3_t vec3_scale(fixp factor, vec3_t val) {
+	vec3_t result;
+	for (int i=0; i< 3; i++) result.a[i] = fixp_mul(factor, val.a[i]);
+	return result;
+}
+
+// Reads a flat palette of (byte-sized) BGR colors and converts each color into a direction vector.
+void read_palette_vectors(const unsigned char *colors) {
+	for (int i=0; i<16; i++) {
+		unsigned char b = *colors++;
+		unsigned char g = *colors++;
+		unsigned char r = *colors++;
+		vec3_t v = { .c = { col2fixp(r), col2fixp(g),  col2fixp(b) } };
+		for (int j=0; j<5; j++)
+			v = vec3_scale(fixp_sqrt_inv(vec3_dot(v, v)), v);
+		printf("Col %02x %02x %02x len2 %d\n", r, g, b, vec3_dot(v, v));
+		palette_vectors[i].c = v.c;
+	}
+}
+
+vec3_t vec3_add(vec3_t a, vec3_t b) {
+	vec3_t result;
+	for (int i=0; i<3; i++) result.a[i] = a.a[i] + b.a[i];
+	return result;
+}
+
+unsigned char fixp2color(fixp val) {
+	return val < 0 ? 0 : (
+		val >= FIXP(1,0) ? 255 : val << 1);
+}
+
+void compute_and_set_bottom_palette(int frame) {
+	vec3_t sun = { .c = { -FIXP(24, 0)/25, 0, FIXP(7, 0)/25 }};
+	
+	vec3_t view_z = { .c = { -pos.dirx, 0, -pos.diry }};
+	vec3_t view_y = { .c = { 0, FIXP(1, 0), 0 }};
+	vec3_t view_x = { .c = { view_z.c.z, 0, view_z.c.x }};
+	vec3_t blue = { 0, 0, FIXP(1, 0) };
+	vec3_t red = { FIXP(1,0), 0, 0 };
+	vec3_t green = { 0, FIXP(1,0), 0 };
+
+	unsigned char dst[3*16];
+	unsigned char *p = dst;
+	*p++ = 0;
+	*p++ = 0;
+	*p++ = 0;
+	for (int i=1; i<15; i++) {
+		vec3_t accum = { 0, 0, 0 };
+		vec3_t normal_lcs = palette_vectors[i];
+		vec3_t normal_gcs = { .c = {
+			vec3_dot(view_x, normal_lcs),
+			vec3_dot(view_y, normal_lcs),
+			vec3_dot(view_z, normal_lcs)}};
+		fixp c_sun = vec3_dot(sun, normal_gcs);
+		if (c_sun < 0) c_sun = 0;
+		vec3_t sunlight = { c_sun, c_sun, c_sun };
+		accum = vec3_add(accum, sunlight);
+
+		vec3_t cabinlight = { 0, FIXP(0, 123), FIXP(0, 23) };
+		fixp c_cabinlight = vec3_dot(cabinlight, normal_lcs);
+		if (c_cabinlight < 0) c_cabinlight = 0;
+		accum = vec3_add(accum, vec3_scale(c_cabinlight, blue));
+
+		vec3_t left = { -FIXP(1,0), 0, 0 };
+		fixp c_left = vec3_dot(left, normal_lcs);
+		if (c_left < 0) c_left = 0;
+		if ((frame & 31) < 4) {
+			accum = vec3_add(accum, vec3_scale(c_left, red));
+		}
+		
+		vec3_t right = { FIXP(1,0), 0, 0 };
+		fixp c_right = vec3_dot(right, normal_lcs);
+		if (c_right < 0) c_right = 0;
+		if (((frame - 3) & 31) < 4) {
+			accum = vec3_add(accum, vec3_scale(c_right, green));
+		}
+
+		*p++ = fixp2color(accum.c.z);
+		*p++ = fixp2color(accum.c.y);
+		*p++ = fixp2color(accum.c.x);
+	}
+	*p++ = 255;
+	*p++ = 255;
+	*p++ = 255;
+	set_bottom_palette(dst);
+}
+
 
 #define FRAMES 800
 
@@ -498,25 +609,50 @@ int main(int argc, char **argv) {
 	linea0();
 	// Hide mouse cursor
 	lineaa();
+
+	unsigned short saved_palette[16];
+	save_palette(saved_palette);
 	
-	set_palette();
 	unsigned short *screen = Physbase();
-	draw_image2(screen, (unsigned char *)colors, 512, 200);
+	printf("\33H\n\n");
+
+	printf("Loading colors.tga\n");
+	image_t colors = read_tga("colors.tga");
+	if (!colors.pixels) goto error;
+
+	set_top_palette(colors.colors);
+	set_palette_immediately(colors.colors);
+	draw_image2(screen, colors.pixels + (166 * 320) + 96, 512, 200, 1);	
+	for (int y=0;y<512; y++)
+		for(int x=0; x<512; x++)
+			combined[y][x].color = colors.pixels[y*512+x];
+	free_image(colors);
+
+	printf("Loading height.tga\n");
+	image_t height = read_tga("height.tga");
+	if (!height.pixels) goto error;
+	for (int y=0;y<512; y++)
+		for(int x=0; x<512; x++)
+			combined[y][x].height = height.pixels[y*512+x];
+	free_image(height);
 
 	printf("Computing tables\n");
 	build_tables();
 	printf("Loading cockpit.tga\n");
 	image_t cockpit = read_tga("cockpit.tga");
+	if (!cockpit.pixels) goto error;
+	read_palette_vectors(cockpit.colors);
 	
 	clear_screen(screen);
 	for (int i=0; i<40; i++) {
-		fill_column(screen, i*8, 0, view_min[i], 1);
-		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 1);
+		fill_column(screen, i*8, 0, view_min[i], 0);
+		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
 	}
 
+	compute_and_set_bottom_palette(0);
 	install_interrupts();
 	int cockpit_y = 120;
-	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y);
+	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 
 	unsigned long t0 = *_hz_200;
 	int last_player_altitude = 40;
@@ -543,6 +679,7 @@ int main(int argc, char **argv) {
 			patch_sky(screen, x, y);
 		}
 		set_color(saved_color);
+		compute_and_set_bottom_palette(i);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
 		pos.y += fixp_mul(pos.diry, pos.speed);
 #ifdef INTERACTIVE
@@ -555,10 +692,7 @@ int main(int argc, char **argv) {
 		pos.diry -= fixp_mul(rot, pos.dirx);
 		
 		// renormalize dirx, diry using a first-order approximation of the inverse square root, f(x) = 1/sqrt(x);
-		// f(1) = 1/sqrt(1)
-		// f'(x) = -0.5 * sqrt(x^(-3/2)) = -0.5 * sqrt(1/x^(3/2))
-		// f'(1) = -0.5
-		fixp factor = FIXP(1,0) - ((fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry) - FIXP(1,0)) >> 1);
+		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
 		pos.dirx = fixp_mul(factor, pos.dirx);
 		pos.diry = fixp_mul(factor, pos.diry);
 #endif
@@ -572,7 +706,10 @@ int main(int argc, char **argv) {
 	printf("Rendering took %dms per frame.\n", millis_per_frame);
 	uninstall_interrupts();
 	
+error:
+	printf("Press any key to exit to TOS.\n");
 	getchar();
+	install_palette(saved_palette);
 	return 0;
 }
 

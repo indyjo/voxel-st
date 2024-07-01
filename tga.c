@@ -67,16 +67,12 @@ image_t read_tga(const char *filename) {
 	header.y_origin = le16toh(header.y_origin);
 	header.width = le16toh(header.width);
 	header.height = le16toh(header.height);
-	dump_header(&header);
-	if (header.datatypecode != 1) {
+	//dump_header(&header);
+	if (header.datatypecode != 1 && header.datatypecode != 3) {
 		printf("Wrong tga type %d\n", header.datatypecode);
 		goto err_close;
 	}
-	if (header.colourmaplength != 16) {
-		printf("Wrong number of colors: %d\n", header.colourmaplength);
-		goto err_close;
-	}
-	if (header.colourmapdepth != 24) {
+	if (header.datatypecode == 1 && header.colourmapdepth != 24) {
 		printf("Wrong color map depth %d\n", header.colourmapdepth);
 		goto err_close;
 	}
@@ -86,17 +82,21 @@ image_t read_tga(const char *filename) {
 		goto err_close;
 	}
 
-	image.colors = calloc(header.colourmaplength, 3);
-	if (!image.colors) {
-		goto err_free;
+	if (header.datatypecode == 1) {
+		image.colors = calloc(header.colourmaplength, 3);
+		if (!image.colors) {
+			printf("Failed to allocate palette buffer\n");
+			goto err_free;
+		}
 	}
 
 	image.pixels = malloc(header.width * header.height);
 	if (!image.pixels) {
+		printf("Failed to allocate %dB of pixels\n", header.width*header.height);
 		goto err_free;
 	}
 
-	image.numColors = header.colourmaplength;
+	image.numColors = (header.datatypecode == 1 ? header.colourmaplength : 0);
 	image.width = header.width;
 	image.height = header.height;
 
