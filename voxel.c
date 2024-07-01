@@ -527,7 +527,7 @@ void read_palette_vectors(const unsigned char *colors) {
 		vec3_t v = { .c = { col2fixp(r), col2fixp(g),  col2fixp(b) } };
 		for (int j=0; j<5; j++)
 			v = vec3_scale(fixp_sqrt_inv(vec3_dot(v, v)), v);
-		printf("Col %02x %02x %02x len2 %d\n", r, g, b, vec3_dot(v, v));
+		//printf("Col %02x %02x %02x len2 %d\n", r, g, b, vec3_dot(v, v));
 		palette_vectors[i].c = v.c;
 	}
 }
@@ -599,6 +599,67 @@ void compute_and_set_bottom_palette(int frame) {
 	set_bottom_palette(dst);
 }
 
+int load_voxel_data() {
+	unsigned char buf[8192];
+	printf("Loading colors.tga\n");
+	FILE *file1 = fopen("colors.tga", "rb");
+	if (!file1) {
+		perror("colors.tga");
+		goto error0;
+	}
+	image_t colors = read_tga_header(file1);
+	if (!colors.width) goto error1;
+
+	set_top_palette(colors.colors);
+	set_palette_immediately(colors.colors);
+
+	size_t n, remaining = 512*512;
+	unsigned char *p = &combined[0][0].color;
+	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+		remaining -= n;
+		printf(".");
+		fflush(stdout);
+		for (size_t i=0; i<n; i++) {
+			*p = buf[i];
+			p += 2;
+		}
+	}
+	printf("\n");
+	free_image(&colors);
+
+	printf("Loading height.tga\n");
+	FILE *file2 = fopen("height.tga", "rb");
+	if (!file2) {
+		perror("height.tga");
+		goto error1;
+	}
+	image_t height = read_tga_header(file2);
+	if (!height.width) goto error2;
+	p = &combined[0][0].height;
+	remaining = 512*512;
+	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+		remaining -= n;
+		printf(".");
+		fflush(stdout);
+		for (size_t i=0; i<n; i++) {
+			*p = buf[i];
+			p += 2;
+		}
+	}
+	printf("\n");
+	free_image(&height);
+
+	fclose(file1);
+	fclose(file2);
+	return 1; // success
+
+error2:
+	fclose(file2);
+error1:
+	fclose(file1);
+error0:
+	return 0;
+}
 
 #define FRAMES 800
 
@@ -614,27 +675,13 @@ int main(int argc, char **argv) {
 	save_palette(saved_palette);
 	
 	unsigned short *screen = Physbase();
-	printf("\33H\n\n");
+	// Set cursor to home and stop blinking.
+	printf("\33H\33f\n\n");
 
-	printf("Loading colors.tga\n");
-	image_t colors = read_tga("colors.tga");
-	if (!colors.pixels) goto error;
-
-	set_top_palette(colors.colors);
-	set_palette_immediately(colors.colors);
-	draw_image2(screen, colors.pixels + (166 * 320) + 96, 512, 200, 1);	
-	for (int y=0;y<512; y++)
-		for(int x=0; x<512; x++)
-			combined[y][x].color = colors.pixels[y*512+x];
-	free_image(colors);
-
-	printf("Loading height.tga\n");
-	image_t height = read_tga("height.tga");
-	if (!height.pixels) goto error;
-	for (int y=0;y<512; y++)
-		for(int x=0; x<512; x++)
-			combined[y][x].height = height.pixels[y*512+x];
-	free_image(height);
+	if (!load_voxel_data()) {
+		printf("Failed to load voxel data.\n");
+		goto error;
+	}
 
 	printf("Computing tables\n");
 	build_tables();

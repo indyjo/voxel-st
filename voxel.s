@@ -1876,368 +1876,329 @@ _vec3_dot:
 | voxel.c:513: }
 	add.w %d1,%d0	| tmp56,
 	rts	
-.LC1:
-	.ascii "Col %02x %02x %02x len2 %d\12\0"
 	.even
 	.globl	_read_palette_vectors
 _read_palette_vectors:
-	movem.l #16190,-(%sp)	|,
-	move.l 48(%sp),%a5	| colors, colors
-	lea _palette_vectors,%a4	|, ivtmp.420
-	lea ___mulsi3,%a2	|, tmp336
-	lea _printf,%a3	|, tmp335
+	movem.l #15932,-(%sp)	|,
+	move.l 40(%sp),%a4	| colors, colors
+	lea _palette_vectors,%a3	|, ivtmp.420
+	move.l #_palette_vectors+96,%d3	|, _445
+	lea ___mulsi3,%a2	|, tmp306
 .L151:
 | voxel.c:524: 		unsigned char b = *colors++;
-	move.b (%a5),%d5	| MEM[(const unsigned char *)colors_342], b
+	move.b (%a4),%d2	| MEM[(const unsigned char *)colors_277], b
 | voxel.c:525: 		unsigned char g = *colors++;
-	move.b 1(%a5),%d4	| MEM[(const unsigned char *)colors_342 + 1B], g
+	move.b 1(%a4),%d4	| MEM[(const unsigned char *)colors_277 + 1B], g
 | voxel.c:526: 		unsigned char r = *colors++;
-	addq.l #3,%a5	|, colors
-| voxel.c:526: 		unsigned char r = *colors++;
-	move.b -1(%a5),%d3	| MEM[(const unsigned char *)colors_25 + 4294967295B], r
+	addq.l #3,%a4	|, colors
 | voxel.c:505: 	signed char c = color - 128;
-	move.b %d3,%d1	| r, c
+	move.b -1(%a4),%d1	| MEM[(const unsigned char *)colors_20 + 4294967295B], c
 	add.b #-128,%d1	|, c
 | voxel.c:506: 	return c >> 1;
-	asr.b #1,%d1	|, _45
+	asr.b #1,%d1	|, _39
 | voxel.c:505: 	signed char c = color - 128;
-	move.b %d4,%d6	| g, c
-	add.b #-128,%d6	|, c
+	add.b #-128,%d4	|, c
 | voxel.c:506: 	return c >> 1;
-	asr.b #1,%d6	|, _41
+	asr.b #1,%d4	|, _35
 | voxel.c:505: 	signed char c = color - 128;
-	move.b %d5,%d7	| b, c
-	add.b #-128,%d7	|, c
+	add.b #-128,%d2	|, c
 | voxel.c:506: 	return c >> 1;
-	asr.b #1,%d7	|, _29
+	asr.b #1,%d2	|, _23
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	ext.w %d6	| _41
-	move.w %d6,%d0	| _41,
-	muls.w %d6,%d0	| _41, tmp206
+	ext.w %d4	| _35
+	move.w %d4,%d0	| _35,
+	muls.w %d4,%d0	| _35, tmp190
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp207
+	asr.l #7,%d0	|, tmp191
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	ext.w %d7	| _29
-	move.w %d7,%d2	| _29,
-	muls.w %d7,%d2	| _29, tmp210
+	ext.w %d2	| _23
+	move.w %d2,%d5	| _23,
+	muls.w %d2,%d5	| _23, tmp194
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d2	|, tmp211
+	asr.l #7,%d5	|, tmp195
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d2,%d0	| tmp211, tmp212
+	add.w %d5,%d0	| tmp195, tmp196
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	ext.w %d1	| _45
-	move.w %d1,%d2	| _45,
-	muls.w %d1,%d2	| _45, tmp215
+	ext.w %d1	| _39
+	move.w %d1,%d5	| _39,
+	muls.w %d1,%d5	| _39, tmp199
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d2	|, tmp216
+	asr.l #7,%d5	|, tmp200
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d2,%d0	| tmp216, result
+	add.w %d5,%d0	| tmp200, result
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	add.w #-128,%d0	|, tmp218
-	ext.l %d0	| tmp219
+	add.w #-128,%d0	|, tmp202
+	ext.l %d0	| tmp203
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp220
+	asr.l #1,%d0	|, tmp204
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%a6	|, tmp221
-	sub.w %d0,%a6	| tmp220, tmp221
+	move.w #128,%d5	|, tmp205
+	sub.w %d0,%d5	| tmp204, tmp205
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	moveq #0,%d0	|
-	move.w %a6,%d0	| tmp221,
-	move.l %d0,%a6	|, _256
+	and.l #65535,%d5	|, _191
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _256,
-	move.w %d1,%a0	| _45,
+	move.l %d5,-(%sp)	| _191,
+	move.w %d1,%a0	| _39,
 	move.l %a0,-(%sp)	|,
-	jsr (%a2)		| tmp336
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d2	| tmp337, _258
-	asr.l #7,%d2	|, _258
+	move.l %d0,%d6	| tmp307, _193
+	asr.l #7,%d6	|, _193
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _256,
-	move.w %d6,%a0	| _41,
+	move.l %d5,-(%sp)	| _191,
+	move.w %d4,%a0	| _35,
 	move.l %a0,-(%sp)	|,
-	jsr (%a2)		| tmp336
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d6	| tmp338, _262
-	asr.l #7,%d6	|, _262
+	move.l %d0,%d4	| tmp308, _197
+	asr.l #7,%d4	|, _197
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _256,
-	move.w %d7,%a0	| _29,
+	move.l %d5,-(%sp)	| _191,
+	move.w %d2,%a0	| _23,
 	move.l %a0,-(%sp)	|,
-	jsr (%a2)		| tmp336
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d7	| tmp339, _266
-	asr.l #7,%d7	|, _266
+	move.l %d0,%d5	| tmp309, _201
+	asr.l #7,%d5	|, _201
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d2,-(%sp)	| _258,
-	move.l %d2,-(%sp)	| _258,
-	jsr (%a2)		| tmp336
+	move.l %d6,-(%sp)	| _193,
+	move.l %d6,-(%sp)	| _193,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp340
-	move.l %d0,%a6	| tmp340, tmp236
+	move.l %d0,%d2	| tmp310, tmp220
+	asr.l #7,%d2	|, tmp220
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d6,-(%sp)	| _262,
-	move.l %d6,-(%sp)	| _262,
-	jsr (%a2)		| tmp336
+	move.l %d4,-(%sp)	| _197,
+	move.l %d4,-(%sp)	| _197,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp239
+	asr.l #7,%d0	|, tmp223
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp239, tmp240
+	add.w %d0,%d2	| tmp223, tmp224
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d7,-(%sp)	| _266,
-	move.l %d7,-(%sp)	| _266,
-	jsr (%a2)		| tmp336
+	move.l %d5,-(%sp)	| _201,
+	move.l %d5,-(%sp)	| _201,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp243
+	asr.l #7,%d0	|, tmp227
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp243, result
+	add.w %d0,%d2	| tmp227, result
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	lea (-128,%a6),%a6	|, tmp245
-	move.w %a6,%d0	| tmp245,
-	ext.l %d0	| tmp246
+	add.w #-128,%d2	|, tmp229
+	move.w %d2,%d1	| tmp229,
+	ext.l %d1	| tmp230
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp247
+	asr.l #1,%d1	|, tmp231
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%a6	|, tmp248
-	sub.w %d0,%a6	| tmp247, tmp248
+	move.w #128,%d2	|, tmp232
+	sub.w %d1,%d2	| tmp231, tmp232
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	moveq #0,%d0	|
-	move.w %a6,%d0	| tmp248,
-	move.l %d0,%a6	|, _314
+	and.l #65535,%d2	|, _249
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _314,
-	move.l %d2,-(%sp)	| _258,
-	jsr (%a2)		| tmp336
+	move.l %d2,-(%sp)	| _249,
+	move.l %d6,-(%sp)	| _193,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d2	| tmp343, _316
-	asr.l #7,%d2	|, _316
+	move.l %d0,%d6	| tmp313, _251
+	asr.l #7,%d6	|, _251
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _314,
-	move.l %d6,-(%sp)	| _262,
-	jsr (%a2)		| tmp336
+	move.l %d2,-(%sp)	| _249,
+	move.l %d4,-(%sp)	| _197,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d6	| tmp344, _320
-	asr.l #7,%d6	|, _320
+	move.l %d0,%d4	| tmp314, _255
+	asr.l #7,%d4	|, _255
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _314,
-	move.l %d7,-(%sp)	| _266,
-	jsr (%a2)		| tmp336
+	move.l %d2,-(%sp)	| _249,
+	move.l %d5,-(%sp)	| _201,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d7	| tmp345, _324
-	asr.l #7,%d7	|, _324
+	move.l %d0,%d5	| tmp315, _259
+	asr.l #7,%d5	|, _259
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d2,-(%sp)	| _316,
-	move.l %d2,-(%sp)	| _316,
-	jsr (%a2)		| tmp336
+	move.l %d6,-(%sp)	| _251,
+	move.l %d6,-(%sp)	| _251,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp346
-	move.l %d0,%a6	| tmp346, tmp257
+	move.l %d0,%d2	| tmp316, tmp241
+	asr.l #7,%d2	|, tmp241
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d6,-(%sp)	| _320,
-	move.l %d6,-(%sp)	| _320,
-	jsr (%a2)		| tmp336
+	move.l %d4,-(%sp)	| _255,
+	move.l %d4,-(%sp)	| _255,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp260
+	asr.l #7,%d0	|, tmp244
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp260, tmp261
+	add.w %d0,%d2	| tmp244, tmp245
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d7,-(%sp)	| _324,
-	move.l %d7,-(%sp)	| _324,
-	jsr (%a2)		| tmp336
+	move.l %d5,-(%sp)	| _259,
+	move.l %d5,-(%sp)	| _259,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp264
+	asr.l #7,%d0	|, tmp248
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp264, result
+	add.w %d0,%d2	| tmp248, result
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	lea (-128,%a6),%a6	|, tmp266
-	move.w %a6,%d0	| tmp266,
-	ext.l %d0	| tmp267
+	add.w #-128,%d2	|, tmp250
+	move.w %d2,%d1	| tmp250,
+	ext.l %d1	| tmp251
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp268
+	asr.l #1,%d1	|, tmp252
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%a6	|, tmp269
-	sub.w %d0,%a6	| tmp268, tmp269
+	move.w #128,%a5	|, tmp253
+	sub.w %d1,%a5	| tmp252, tmp253
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %a6,%a6	| tmp269, _372
+	move.w %a5,%a5	| tmp253, _307
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _372,
-	move.l %d2,-(%sp)	| _316,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _307,
+	move.l %d6,-(%sp)	| _251,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d2	| tmp349, _374
-	asr.l #7,%d2	|, _374
+	move.l %d0,%d6	| tmp319, _309
+	asr.l #7,%d6	|, _309
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _372,
-	move.l %d6,-(%sp)	| _320,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _307,
+	move.l %d4,-(%sp)	| _255,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d6	| tmp350, _378
-	asr.l #7,%d6	|, _378
+	move.l %d0,%d4	| tmp320, _313
+	asr.l #7,%d4	|, _313
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _372,
-	move.l %d7,-(%sp)	| _324,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _307,
+	move.l %d5,-(%sp)	| _259,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d7	| tmp351, _382
-	asr.l #7,%d7	|, _382
+	move.l %d0,%d5	| tmp321, _317
+	asr.l #7,%d5	|, _317
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d2,-(%sp)	| _374,
-	move.l %d2,-(%sp)	| _374,
-	jsr (%a2)		| tmp336
+	move.l %d6,-(%sp)	| _309,
+	move.l %d6,-(%sp)	| _309,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp352
-	move.l %d0,%a6	| tmp352, tmp278
+	move.l %d0,%d2	| tmp322, tmp262
+	asr.l #7,%d2	|, tmp262
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d6,-(%sp)	| _378,
-	move.l %d6,-(%sp)	| _378,
-	jsr (%a2)		| tmp336
+	move.l %d4,-(%sp)	| _313,
+	move.l %d4,-(%sp)	| _313,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp281
+	asr.l #7,%d0	|, tmp265
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp281, tmp282
+	add.w %d0,%d2	| tmp265, tmp266
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d7,-(%sp)	| _382,
-	move.l %d7,-(%sp)	| _382,
-	jsr (%a2)		| tmp336
+	move.l %d5,-(%sp)	| _317,
+	move.l %d5,-(%sp)	| _317,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp285
+	asr.l #7,%d0	|, tmp269
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d0,%a6	| tmp285, result
+	add.w %d0,%d2	| tmp269, result
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w %a6,%a6	| result, result
-	moveq #-128,%d0	|, tmp288
-	add.l %a6,%d0	| result, tmp288
+	move.w %d2,%a0	| result, result
+	moveq #-128,%d1	|, tmp272
+	add.l %a0,%d1	| result, tmp272
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp289
+	asr.l #1,%d1	|, tmp273
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%a6	|, tmp290
-	sub.w %d0,%a6	| tmp289, tmp290
+	move.w #128,%a5	|, tmp274
+	sub.w %d1,%a5	| tmp273, tmp274
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %a6,%a6	| tmp290, _430
+	move.w %a5,%a5	| tmp274, _365
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _430,
-	move.l %d2,-(%sp)	| _374,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _365,
+	move.l %d6,-(%sp)	| _309,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d2	| tmp355, tmp293
-	asr.l #7,%d2	|, tmp293
+	move.l %d0,%d2	| tmp325, tmp277
+	asr.l #7,%d2	|, tmp277
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _430,
-	move.l %d6,-(%sp)	| _378,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _365,
+	move.l %d4,-(%sp)	| _313,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d0,%d6	| tmp356, tmp296
-	asr.l #7,%d6	|, tmp296
+	move.l %d0,%d4	| tmp326, tmp280
+	asr.l #7,%d4	|, tmp280
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a6,-(%sp)	| _430,
-	move.l %d7,-(%sp)	| _382,
-	jsr (%a2)		| tmp336
+	move.l %a5,-(%sp)	| _365,
+	move.l %d5,-(%sp)	| _317,
+	jsr (%a2)		| tmp306
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp299
+	asr.l #7,%d0	|, tmp283
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
 	move.w %d2,%d1	|,
-	muls.w %d2,%d1	| tmp293, tmp300
+	muls.w %d2,%d1	| tmp277, tmp284
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d1	|, tmp301
+	asr.l #7,%d1	|, tmp285
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d6,%d7	|,
-	muls.w %d6,%d7	| tmp296, tmp302
+	move.w %d4,%d5	|,
+	muls.w %d4,%d5	| tmp280, tmp286
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d7	|, tmp303
+	asr.l #7,%d5	|, tmp287
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d7,%d1	| tmp303, tmp304
+	add.w %d5,%d1	| tmp287, tmp288
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d0,%d7	|,
-	muls.w %d0,%d7	| tmp299, tmp305
+	move.w %d0,%d5	|,
+	muls.w %d0,%d5	| tmp283, tmp289
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d7	|, tmp306
+	asr.l #7,%d5	|, tmp290
 | voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d7,%d1	| tmp306, result
+	add.w %d5,%d1	| tmp290, result
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
 	move.w %d1,%a0	| result, result
-	moveq #-128,%d1	|, tmp309
-	add.l %a0,%d1	| result, tmp309
+	moveq #-128,%d1	|, tmp293
+	add.l %a0,%d1	| result, tmp293
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d1	|, tmp310
+	asr.l #1,%d1	|, tmp294
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%d7	|, _484
-	sub.w %d1,%d7	| tmp310, _484
+	move.w #128,%d5	|, _419
+	sub.w %d1,%d5	| tmp294, _419
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	muls.w %d7,%d2	| _484, tmp311
+	muls.w %d5,%d2	| _419, tmp296
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d2	|, tmp312
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	muls.w %d7,%d6	| _484, tmp313
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d6	|, tmp314
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	muls.w %d0,%d7	| tmp299, tmp315
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d7	|, tmp316
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d2,%d0	|,
-	muls.w %d2,%d0	| tmp312, tmp317
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp318
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d6,%d1	|,
-	muls.w %d6,%d1	| tmp314, tmp319
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d1	|, tmp320
-| voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d1,%d0	| tmp320, tmp321
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d7,%d1	|,
-	muls.w %d7,%d1	| tmp316, tmp322
-| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d1	|, tmp323
-| voxel.c:511: 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
-	add.w %d1,%d0	| tmp323, result
-| voxel.c:530: 		printf("Col %02x %02x %02x len2 %d\n", r, g, b, vec3_dot(v, v));
-	move.w %d0,%a0	| result,
-	move.l %a0,-(%sp)	|,
-	and.l #255,%d5	|, b
-	move.l %d5,-(%sp)	| b,
-	and.l #255,%d4	|, g
-	move.l %d4,-(%sp)	| g,
-	and.l #255,%d3	|, r
-	move.l %d3,-(%sp)	| r,
-	pea .LC1		|
-	jsr (%a3)		| tmp335
+	asr.l #7,%d2	|, tmp297
 | voxel.c:531: 		palette_vectors[i].c = v.c;
-	swap %d2	| _495
-	clr.w %d2	| _495
-	move.w %d6,%d2	| tmp314, _495
-	move.l %d2,(%a4)	| _495, MEM <vector(2) short int> [(union  *)_361]
-	move.w %d7,4(%a4)	| tmp316, MEM <fixp> [(union  *)_361 + 4B]
+	swap %d2	| tmp295
+	clr.w %d2	| tmp295
+| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+	muls.w %d5,%d4	| _419, tmp302
+| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+	asr.l #7,%d4	|, tmp303
+| voxel.c:531: 		palette_vectors[i].c = v.c;
+	move.w %d4,%d2	| tmp303, tmp295
+	move.l %d2,(%a3)	| tmp295, MEM <vector(2) short int> [(union  *)_448]
+| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+	muls.w %d5,%d0	| _419, tmp304
+| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+	asr.l #7,%d0	|, tmp305
+| voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
+	move.w %d0,4(%a3)	| tmp305, MEM <fixp> [(union  *)_448 + 4B]
 | voxel.c:523: 	for (int i=0; i<16; i++) {
-	addq.l #6,%a4	|, ivtmp.420
-	lea (20,%sp),%sp	|,
-	cmp.l #_palette_vectors+96,%a4	|, ivtmp.420
+	addq.l #6,%a3	|, ivtmp.420
+	cmp.l %d3,%a3	| _445, ivtmp.420
 	jne .L151		|
 | voxel.c:533: }
-	movem.l (%sp)+,#31996	|,
+	movem.l (%sp)+,#15484	|,
 	rts	
 	.even
 	.globl	_vec3_add
@@ -2958,222 +2919,365 @@ _compute_and_set_bottom_palette:
 	cmp.l %a0,%d5	| p, tmp374
 	jne .L217		|
 	jra .L175		|
-.LC2:
-	.ascii "\33H\12\0"
-.LC3:
+.LC1:
 	.ascii "Loading colors.tga\0"
-.LC4:
+.LC2:
+	.ascii "rb\0"
+.LC3:
 	.ascii "colors.tga\0"
-.LC5:
+.LC4:
 	.ascii "Loading height.tga\0"
-.LC6:
+.LC5:
 	.ascii "height.tga\0"
+	.even
+	.globl	_load_voxel_data
+_load_voxel_data:
+	lea (-8220,%sp),%sp	|,
+	movem.l #16190,-(%sp)	|,
+| voxel.c:604: 	printf("Loading colors.tga\n");
+	pea .LC1		|
+	lea _puts,%a6	|, tmp98
+	jsr (%a6)		| tmp98
+| voxel.c:605: 	FILE *file1 = fopen("colors.tga", "rb");
+	pea .LC2		|
+	pea .LC3		|
+	lea _fopen,%a5	|, tmp100
+	jsr (%a5)		| tmp100
+	move.l %d0,%d5	| tmp109, file1
+| voxel.c:606: 	if (!file1) {
+	lea (12,%sp),%sp	|,
+	jeq .L255		|
+| voxel.c:610: 	image_t colors = read_tga_header(file1);
+	move.l %d0,-(%sp)	| file1,
+	lea (48,%sp),%a1	|,,
+	jsr _read_tga_header		|
+| voxel.c:611: 	if (!colors.width) goto error1;
+	addq.l #4,%sp	|,
+	tst.w 44(%sp)	| colors.width
+	jne .L251		|
+	lea _fclose,%a2	|, tmp104
+.L236:
+| voxel.c:659: 	fclose(file1);
+	move.l %d5,-(%sp)	| file1,
+	jsr (%a2)		| tmp104
+	addq.l #4,%sp	|,
+.L246:
+| voxel.c:661: 	return 0;
+	moveq #0,%d0	| <retval>
+.L233:
+| voxel.c:662: }
+	movem.l (%sp)+,#31996	|,
+	lea (8220,%sp),%sp	|,
+	rts	
+.L251:
+| voxel.c:613: 	set_top_palette(colors.colors);
+	move.l 52(%sp),-(%sp)	| colors.colors,
+	jsr _set_top_palette		|
+| voxel.c:614: 	set_palette_immediately(colors.colors);
+	move.l 56(%sp),-(%sp)	| colors.colors,
+	jsr _set_palette_immediately		|
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	addq.l #8,%sp	|,
+| voxel.c:617: 	unsigned char *p = &combined[0][0].color;
+	move.l #_combined,%d4	|, p
+| voxel.c:616: 	size_t n, remaining = 512*512;
+	moveq #4,%d3	|, remaining
+	swap %d3	| remaining
+	lea _putchar,%a3	|, tmp95
+	moveq #72,%d2	|, tmp103
+	add.l %sp,%d2	|, tmp103
+	lea _fread,%a2	|, tmp99
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	move.l #8192,%d6	|, remaining
+| voxel.c:621: 		fflush(stdout);
+	lea _fflush,%a4	|, tmp108
+.L237:
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	move.l %d5,-(%sp)	| file1,
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	move.l %d3,%d0	| remaining, remaining
+	cmp.l #8192,%d3	|, remaining
+	jls .L239		|
+	move.l %d6,%d0	| remaining, remaining
+.L239:
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	move.l %d0,-(%sp)	| remaining,
+	pea 1.w		|
+	move.l %d2,-(%sp)	| tmp103,
+	jsr (%a2)		| tmp99
+	move.l %d0,%d7	| tmp110, n
+| voxel.c:618: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	lea (16,%sp),%sp	|,
+	jeq .L256		|
+| voxel.c:619: 		remaining -= n;
+	sub.l %d7,%d3	| n, remaining
+| voxel.c:620: 		printf(".");
+	pea 46.w		|
+	jsr (%a3)		| tmp95
+| voxel.c:621: 		fflush(stdout);
+	move.l _stdout,-(%sp)	| stdout,
+	jsr (%a4)		| tmp108
+	move.l %d2,%a1	| tmp103, ivtmp.505
+	move.l %d2,%d0	| tmp103, _86
+	add.l %d7,%d0	| n, _86
+	addq.l #8,%sp	|,
+	move.l %d4,%a0	| p, p
+.L238:
+| voxel.c:623: 			*p = buf[i];
+	move.b (%a1)+,(%a0)	| MEM[(unsigned char *)_84], MEM[(unsigned char *)p_72]
+| voxel.c:624: 			p += 2;
+	addq.l #2,%a0	|, p
+| voxel.c:622: 		for (size_t i=0; i<n; i++) {
+	cmp.l %a1,%d0	| ivtmp.505, _86
+	jne .L238		|
+	move.l %d7,%d1	| n, tmp69
+	add.l %d7,%d1	| n, tmp69
+	add.l %d1,%d4	| tmp69, p
+	jra .L237		|
+.L256:
+| voxel.c:627: 	printf("\n");
+	pea 10.w		|
+	jsr (%a3)		| tmp95
+| voxel.c:628: 	free_image(&colors);
+	pea 48(%sp)		|
+	lea _free_image,%a4	|, tmp102
+	jsr (%a4)		| tmp102
+| voxel.c:630: 	printf("Loading height.tga\n");
+	pea .LC4		|
+	jsr (%a6)		| tmp98
+| voxel.c:631: 	FILE *file2 = fopen("height.tga", "rb");
+	pea .LC2		|
+	pea .LC5		|
+	jsr (%a5)		| tmp100
+	move.l %d0,%d6	| tmp111, file2
+| voxel.c:632: 	if (!file2) {
+	lea (20,%sp),%sp	|,
+	jeq .L257		|
+| voxel.c:636: 	image_t height = read_tga_header(file2);
+	move.l %d0,-(%sp)	| file2,
+	lea (62,%sp),%a1	|,,
+	jsr _read_tga_header		|
+| voxel.c:637: 	if (!height.width) goto error2;
+	addq.l #4,%sp	|,
+	tst.w 58(%sp)	| height.width
+	jeq .L258		|
+| voxel.c:638: 	p = &combined[0][0].height;
+	move.l #_combined+1,%d4	|, p
+| voxel.c:639: 	remaining = 512*512;
+	moveq #4,%d3	|, remaining
+	swap %d3	| remaining
+| voxel.c:640: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	move.l #8192,%d7	|, remaining
+| voxel.c:643: 		fflush(stdout);
+	lea _fflush,%a5	|, tmp106
+.L242:
+| voxel.c:640: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	move.l %d6,-(%sp)	| file2,
+| voxel.c:640: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	move.l %d3,%d0	| remaining, remaining
+	cmp.l #8192,%d3	|, remaining
+	jls .L244		|
+	move.l %d7,%d0	| remaining, remaining
+.L244:
+| voxel.c:640: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	move.l %d0,-(%sp)	| remaining,
+	pea 1.w		|
+	move.l %d2,-(%sp)	| tmp103,
+	jsr (%a2)		| tmp99
+	move.l %d0,%a6	| tmp112, n
+| voxel.c:640: 	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	lea (16,%sp),%sp	|,
+	tst.l %d0	| n
+	jeq .L259		|
+| voxel.c:641: 		remaining -= n;
+	sub.l %a6,%d3	| n, remaining
+| voxel.c:642: 		printf(".");
+	pea 46.w		|
+	jsr (%a3)		| tmp95
+| voxel.c:643: 		fflush(stdout);
+	move.l _stdout,-(%sp)	| stdout,
+	jsr (%a5)		| tmp106
+	move.l %d2,%a1	| tmp103, ivtmp.498
+	move.l %d2,%d0	| tmp103, _67
+	add.l %a6,%d0	| n, _67
+	addq.l #8,%sp	|,
+	move.l %d4,%a0	| p, p
+.L243:
+| voxel.c:645: 			*p = buf[i];
+	move.b (%a1)+,(%a0)	| MEM[(unsigned char *)_69], MEM[(unsigned char *)p_74]
+| voxel.c:646: 			p += 2;
+	addq.l #2,%a0	|, p
+| voxel.c:644: 		for (size_t i=0; i<n; i++) {
+	cmp.l %a1,%d0	| ivtmp.498, _67
+	jne .L243		|
+	add.l %a6,%a6	| n, tmp84
+	add.l %a6,%d4	| tmp84, p
+	jra .L242		|
+.L259:
+| voxel.c:649: 	printf("\n");
+	pea 10.w		|
+	jsr (%a3)		| tmp95
+| voxel.c:650: 	free_image(&height);
+	pea 62(%sp)		|
+	jsr (%a4)		| tmp102
+| voxel.c:652: 	fclose(file1);
+	move.l %d5,-(%sp)	| file1,
+	lea _fclose,%a2	|, tmp91
+	jsr (%a2)		| tmp91
+| voxel.c:653: 	fclose(file2);
+	move.l %d6,-(%sp)	| file2,
+	jsr (%a2)		| tmp91
+| voxel.c:654: 	return 1; // success
+	lea (16,%sp),%sp	|,
+	moveq #1,%d0	|, <retval>
+| voxel.c:662: }
+	movem.l (%sp)+,#31996	|,
+	lea (8220,%sp),%sp	|,
+	rts	
+.L255:
+| voxel.c:607: 		perror("colors.tga");
+	pea .LC3		|
+	jsr _perror		|
+| voxel.c:608: 		goto error0;
+	addq.l #4,%sp	|,
+| voxel.c:661: 	return 0;
+	moveq #0,%d0	| <retval>
+	jra .L233		|
+.L257:
+| voxel.c:633: 		perror("height.tga");
+	pea .LC5		|
+	jsr _perror		|
+| voxel.c:634: 		goto error1;
+	addq.l #4,%sp	|,
+	lea _fclose,%a2	|, tmp104
+	jra .L236		|
+.L258:
+| voxel.c:657: 	fclose(file2);
+	move.l %d6,-(%sp)	| file2,
+	lea _fclose,%a2	|, tmp104
+	jsr (%a2)		| tmp104
+	addq.l #4,%sp	|,
+| voxel.c:659: 	fclose(file1);
+	move.l %d5,-(%sp)	| file1,
+	jsr (%a2)		| tmp104
+	addq.l #4,%sp	|,
+	jra .L246		|
+.LC6:
+	.ascii "\33H\33f\12\0"
 .LC7:
-	.ascii "Computing tables\0"
+	.ascii "Failed to load voxel data.\0"
 .LC8:
-	.ascii "Loading cockpit.tga\0"
+	.ascii "Computing tables\0"
 .LC9:
-	.ascii "cockpit.tga\0"
+	.ascii "Loading cockpit.tga\0"
 .LC10:
-	.ascii "Rendering took %dms per frame.\12\0"
+	.ascii "cockpit.tga\0"
 .LC11:
+	.ascii "Rendering took %dms per frame.\12\0"
+.LC12:
 	.ascii "Press any key to exit to TOS.\0"
 	.even
 	.globl	_main
 _main:
-	lea (-148,%sp),%sp	|,
+	lea (-120,%sp),%sp	|,
 	movem.l #16190,-(%sp)	|,
-| voxel.c:605: int main(int argc, char **argv) {
+| voxel.c:666: int main(int argc, char **argv) {
 	jsr ___main		|
-| voxel.c:607: 	Super(0L);
-	moveq #0,%d0	| tmp352
+| voxel.c:668: 	Super(0L);
+	moveq #0,%d0	| tmp330
 #APP
-| 607 "voxel.c" 1
-	movl	%d0,%sp@-	| tmp352
+| 668 "voxel.c" 1
+	movl	%d0,%sp@-	| tmp330
 	movw	#32,%sp@-	|
 	trap	#1
 	addql	#6,%sp
 | 0 "" 2
-| voxel.c:609: 	linea0();
+| voxel.c:670: 	linea0();
 #NO_APP
 	jsr _linea0		|
-| voxel.c:611: 	lineaa();
+| voxel.c:672: 	lineaa();
 	jsr _lineaa		|
-| voxel.c:614: 	save_palette(saved_palette);
-	pea 160(%sp)		|
+| voxel.c:675: 	save_palette(saved_palette);
+	pea 132(%sp)		|
 	jsr _save_palette		|
-| voxel.c:616: 	unsigned short *screen = Physbase();
+| voxel.c:677: 	unsigned short *screen = Physbase();
 #APP
-| 616 "voxel.c" 1
+| 677 "voxel.c" 1
 	movw	#2,%sp@-	|
 	trap	#14
 	addql	#2,%sp
 | 0 "" 2
 #NO_APP
-	move.l %d0,74(%sp)	| tmp623, %sfp
-| voxel.c:617: 	printf("\33H\n\n");
-	pea .LC2		|
-	jsr _puts		|
-| voxel.c:619: 	printf("Loading colors.tga\n");
-	pea .LC3		|
-	jsr _puts		|
-| voxel.c:620: 	image_t colors = read_tga("colors.tga");
-	pea .LC4		|
-	lea (134,%sp),%a1	|,,
-	lea _read_tga,%a3	|, tmp598
-	jsr (%a3)		| tmp598
-	move.l 138(%sp),%d2	| colors.pixels, colors$pixels
-	move.l 142(%sp),%d3	| colors.colors, colors$colors
-| voxel.c:621: 	if (!colors.pixels) goto error;
-	lea (16,%sp),%sp	|,
-	tst.l %d2	| colors$pixels
-	jeq .L235		|
-| voxel.c:623: 	set_top_palette(colors.colors);
-	move.l %d3,-(%sp)	| colors$colors,
-	jsr _set_top_palette		|
-| voxel.c:624: 	set_palette_immediately(colors.colors);
-	move.l %d3,-(%sp)	| colors$colors,
-	jsr _set_palette_immediately		|
-| voxel.c:625: 	draw_image2(screen, colors.pixels + (166 * 320) + 96, 512, 200, 1);	
-	pea 1.w		|
-	pea 200.w		|
-	pea 512.w		|
-	move.l %d2,%d0	| colors$pixels,
-	add.l #53216,%d0	|,
-	move.l %d0,-(%sp)	|,
-	move.l 94(%sp),-(%sp)	| %sfp,
-	lea _draw_image2,%a2	|, tmp606
-	jsr (%a2)		| tmp606
-	move.l #_combined+1024,%d0	|, ivtmp.630
-	move.l #_combined+525312,%d3	|, _728
-	lea (28,%sp),%sp	|,
-	moveq #0,%d1	| ivtmp.629
-.L236:
-	move.l %d2,%a1	| colors$pixels, ivtmp.620
-	add.l %d1,%a1	| ivtmp.629, ivtmp.620
-	move.l %d0,%a0	| ivtmp.630, ivtmp.621
-	lea (-1024,%a0),%a0	|, ivtmp.621
-.L237:
-| voxel.c:628: 			combined[y][x].color = colors.pixels[y*512+x];
-	move.b (%a1)+,(%a0)	| MEM[(unsigned char *)_742], MEM <unsigned char> [(union  *)_741]
-| voxel.c:627: 		for(int x=0; x<512; x++)
-	addq.l #2,%a0	|, ivtmp.621
-	cmp.l %d0,%a0	| ivtmp.630, ivtmp.621
-	jne .L237		|
-| voxel.c:626: 	for (int y=0;y<512; y++)
-	add.l #512,%d1	|, ivtmp.629
-	add.l #1024,%d0	|, ivtmp.630
-	cmp.l %d3,%d0	| _728, ivtmp.630
-	jne .L236		|
-| voxel.c:629: 	free_image(colors);
-	subq.l #2,%sp	|,
-	move.l 130(%sp),-(%sp)	| colors,
-	move.l 130(%sp),-(%sp)	| colors,
-	move.l 130(%sp),-(%sp)	| colors,
-	move.w 132(%sp),-(%sp)	| colors,
-	lea _free_image,%a4	|, tmp596
-	jsr (%a4)		| tmp596
-| voxel.c:631: 	printf("Loading height.tga\n");
-	pea .LC5		|
-	jsr _puts		|
-| voxel.c:632: 	image_t height = read_tga("height.tga");
+	move.l %d0,74(%sp)	| tmp579, %sfp
+| voxel.c:679: 	printf("\33H\33f\n\n");
 	pea .LC6		|
-	lea (156,%sp),%a5	|,, tmp600
-	move.l %a5,%a1	| tmp600,
-	jsr (%a3)		| tmp598
-	move.l 160(%sp),%d2	| height.pixels, height$pixels
-| voxel.c:633: 	if (!height.pixels) goto error;
-	lea (24,%sp),%sp	|,
-	jeq .L235		|
-	move.l #_combined+1025,%d0	|, ivtmp.612
-	move.l #_combined+525313,%d3	|, _758
-	moveq #0,%d1	| ivtmp.611
-.L240:
-	move.l %d2,%a1	| height$pixels, ivtmp.600
-	add.l %d1,%a1	| ivtmp.611, ivtmp.600
-	move.l %d0,%a0	| ivtmp.612, ivtmp.601
-	lea (-1024,%a0),%a0	|, ivtmp.601
-.L241:
-| voxel.c:636: 			combined[y][x].height = height.pixels[y*512+x];
-	move.b (%a1)+,(%a0)	| MEM[(unsigned char *)_772], MEM <unsigned char> [(union  *)_771]
-| voxel.c:635: 		for(int x=0; x<512; x++)
-	addq.l #2,%a0	|, ivtmp.601
-	cmp.l %d0,%a0	| ivtmp.612, ivtmp.601
-	jne .L241		|
-| voxel.c:634: 	for (int y=0;y<512; y++)
-	add.l #512,%d1	|, ivtmp.611
-	add.l #1024,%d0	|, ivtmp.612
-	cmp.l %d3,%d0	| _758, ivtmp.612
-	jne .L240		|
-| voxel.c:637: 	free_image(height);
-	lea (-16,%sp),%sp	|,
-	move.l %sp,%d0	|, tmp370
-	pea 14.w		|
-	move.l %a5,-(%sp)	| tmp600,
-	move.l %d0,-(%sp)	| tmp370,
-	jsr _memcpy		|
-	lea (12,%sp),%sp	|,
-	jsr (%a4)		| tmp596
-| voxel.c:639: 	printf("Computing tables\n");
-	pea .LC7		|
 	jsr _puts		|
-| voxel.c:640: 	build_tables();
-	jsr _build_tables		|
-| voxel.c:641: 	printf("Loading cockpit.tga\n");
+| voxel.c:681: 	if (!load_voxel_data()) {
+	jsr _load_voxel_data		|
+| voxel.c:681: 	if (!load_voxel_data()) {
+	addq.l #8,%sp	|,
+	tst.l %d0	| tmp580
+	jeq .L317		|
+| voxel.c:686: 	printf("Computing tables\n");
 	pea .LC8		|
 	jsr _puts		|
-| voxel.c:642: 	image_t cockpit = read_tga("cockpit.tga");
+| voxel.c:687: 	build_tables();
+	jsr _build_tables		|
+| voxel.c:688: 	printf("Loading cockpit.tga\n");
 	pea .LC9		|
-	lea (174,%sp),%a1	|,,
-	jsr (%a3)		| tmp598
-	move.l 178(%sp),%d2	| cockpit.pixels, cockpit$pixels
-| voxel.c:643: 	if (!cockpit.pixels) goto error;
-	lea (28,%sp),%sp	|,
-	jeq .L235		|
-| voxel.c:644: 	read_palette_vectors(cockpit.colors);
-	move.l 154(%sp),-(%sp)	| cockpit.colors,
+	jsr _puts		|
+| voxel.c:689: 	image_t cockpit = read_tga("cockpit.tga");
+	pea .LC10		|
+	lea (130,%sp),%a1	|,,
+	jsr _read_tga		|
+	move.l 134(%sp),%d2	| cockpit.pixels, cockpit$pixels
+| voxel.c:690: 	if (!cockpit.pixels) goto error;
+	lea (12,%sp),%sp	|,
+	jeq .L262		|
+| voxel.c:691: 	read_palette_vectors(cockpit.colors);
+	move.l 126(%sp),-(%sp)	| cockpit.colors,
 	jsr _read_palette_vectors		|
-	move.l 74(%sp),%a0	| %sfp, ivtmp.593
-	move.l %a0,%d0	| ivtmp.593, _786
-	add.l #32000,%d0	|, _786
+	move.l 74(%sp),%a0	| %sfp, ivtmp.608
+	move.l %a0,%d0	| ivtmp.608, _737
+	add.l #32000,%d0	|, _737
 	addq.l #4,%sp	|,
-.L243:
+.L263:
 | voxel.c:140: 	for (int i=0; i<16000; i++) *out++ = 0;
-	clr.l (%a0)+	| MEM <vector(2) short unsigned int> [(short unsigned int *)vectp.505_853]
-	cmp.l %d0,%a0	| _786, ivtmp.593
-	jne .L243		|
+	clr.l (%a0)+	| MEM <vector(2) short unsigned int> [(short unsigned int *)vectp.520_804]
+	cmp.l %d0,%a0	| _737, ivtmp.608
+	jne .L263		|
 | voxel.c:476: 	unsigned int movep_data = pdata_table[color][MAX_OPACITY][0];
 	move.l _pdata_table+224,%d0	| pdata_table[0][7][0], movep_data
-	lea _view_min,%a3	|, ivtmp.584
-	lea _view_max,%a4	|, ivtmp.587
-	move.l #_view_min+80,%d6	|, _180
-	clr.w %d4	| ivtmp.585
-.L248:
-| voxel.c:648: 		fill_column(screen, i*8, 0, view_min[i], 0);
-	move.w (%a3)+,%d1	| MEM[(short int *)_863], _13
+	lea _view_min,%a1	|, ivtmp.599
+	lea _view_max,%a2	|, ivtmp.602
+	clr.w %d3	| ivtmp.600
+.L268:
+| voxel.c:695: 		fill_column(screen, i*8, 0, view_min[i], 0);
+	move.w (%a1)+,%d1	| MEM[(short int *)_745], _4
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	move.w %d4,%d3	| ivtmp.585,
-	asr.w #4,%d3	|,
-	move.w %d3,%a1	| tmp384, tmp385
+	move.w %d3,%d5	| ivtmp.600, tmp345
+	asr.w #4,%d5	|, tmp345
+	ext.l %d5	| tmp346
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %a1,%a1	| tmp385, tmp386
-	add.l %a1,%a1	| tmp386, _219
+	add.l %d5,%d5	| tmp346, tmp347
+	add.l %d5,%d5	| tmp347, _179
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	move.l %d4,%d3	|, tmp389
-	lsr.l #3,%d3	|, tmp389
-	moveq #1,%d5	|,
-	and.l %d5,%d3	|, _224
+	move.l %d3,%d4	|, tmp350
+	lsr.l #3,%d4	|, tmp350
+	moveq #1,%d6	|,
+	and.l %d6,%d4	|, _184
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	lea (%a1,%a1.l),%a0	| _219, _219, tmp390
+	move.l %d5,%a0	| _179, tmp351
+	add.l %d5,%a0	| _179, tmp351
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %d3,%a0	| _224, tmp391
+	add.l %d4,%a0	| _184, tmp352
 	add.l 70(%sp),%a0	| %sfp, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
-	tst.w %d1	| _13
-	jle .L244		|
-	mulu.w #160,%d1	|, tmp392
-	add.l %a0,%d1	| pBlock, _845
-.L245:
+	tst.w %d1	| _4
+	jle .L264		|
+	mulu.w #160,%d1	|, tmp353
+	add.l %a0,%d1	| pBlock, _133
+.L265:
 | voxel.c:329: 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 #APP
 | 329 "voxel.c" 1
@@ -3183,34 +3287,34 @@ _main:
 #NO_APP
 	lea (160,%a0),%a0	|, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
-	cmp.l %a0,%d1	| pBlock, _845
-	jne .L245		|
-.L244:
-| voxel.c:649: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
-	move.w (%a4)+,%a0	| MEM[(short int *)_791], _17
-| voxel.c:649: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
-	move.w #199,%d1	|, _19
-	sub.w %a0,%d1	| _17, _19
-| voxel.c:649: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
-	addq.w #1,%a0	|, tmp394
+	cmp.l %d1,%a0	| _133, pBlock
+	jne .L265		|
+.L264:
+| voxel.c:696: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
+	move.w (%a2)+,%a0	| MEM[(short int *)_742], _8
+| voxel.c:696: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
+	move.w #199,%d1	|, _10
+	sub.w %a0,%d1	| _8, _10
+| voxel.c:696: 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
+	addq.w #1,%a0	|, tmp355
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	move.w %a0,%d5	| tmp394,
-	muls.w #80,%d5	|,
-	move.l %d5,%a0	|, tmp395
+	move.w %a0,%d6	| tmp355,
+	muls.w #80,%d6	|,
+	move.l %d6,%a0	|, tmp356
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %a1,%a0	| _219, tmp397
+	add.l %d5,%a0	| _179, tmp358
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %a0,%a0	| tmp397, tmp398
+	add.l %a0,%a0	| tmp358, tmp359
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %a0,%d3	| tmp398, tmp399
+	add.l %a0,%d4	| tmp359, tmp360
 	move.l 70(%sp),%a0	| %sfp, pBlock
-	add.l %d3,%a0	| tmp399, pBlock
+	add.l %d4,%a0	| tmp360, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
-	tst.w %d1	| _19
-	jle .L246		|
-	mulu.w #160,%d1	|, tmp400
-	add.l %a0,%d1	| pBlock, _841
-.L247:
+	tst.w %d1	| _10
+	jle .L266		|
+	mulu.w #160,%d1	|, tmp361
+	add.l %a0,%d1	| pBlock, _798
+.L267:
 | voxel.c:329: 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 #APP
 | 329 "voxel.c" 1
@@ -3220,264 +3324,264 @@ _main:
 #NO_APP
 	lea (160,%a0),%a0	|, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
-	cmp.l %a0,%d1	| pBlock, _841
-	jne .L247		|
-.L246:
-| voxel.c:647: 	for (int i=0; i<40; i++) {
-	addq.w #8,%d4	|, ivtmp.585
-	cmp.l %d6,%a3	| _180, ivtmp.584
-	jne .L248		|
-| voxel.c:652: 	compute_and_set_bottom_palette(0);
+	cmp.l %a0,%d1	| pBlock, _798
+	jne .L267		|
+.L266:
+| voxel.c:694: 	for (int i=0; i<40; i++) {
+	addq.w #8,%d3	|, ivtmp.600
+	cmp.l #_view_min+80,%a1	|, ivtmp.599
+	jne .L268		|
+| voxel.c:699: 	compute_and_set_bottom_palette(0);
 	clr.l -(%sp)	|
 	jsr _compute_and_set_bottom_palette		|
-| voxel.c:653: 	install_interrupts();
+| voxel.c:700: 	install_interrupts();
 	jsr _install_interrupts		|
-| voxel.c:655: 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
+| voxel.c:702: 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 	clr.l -(%sp)	|
 	pea 80.w		|
-	move.w 158(%sp),%a0	| cockpit.width,
+	move.w 130(%sp),%a0	| cockpit.width,
 	move.l %a0,-(%sp)	|,
 	move.l %d2,-(%sp)	| cockpit$pixels,
 	move.l 90(%sp),%a1	| %sfp,
 	pea 19200(%a1)		|
-	jsr (%a2)		| tmp606
-| voxel.c:657: 	unsigned long t0 = *_hz_200;
+	jsr _draw_image2		|
+| voxel.c:704: 	unsigned long t0 = *_hz_200;
 	move.l 1210.w,138(%sp)	| MEM[(volatile long unsigned int *)1210B], %sfp
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
-	move.w _pos+2,%d5	| pos.y, _72
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
 	lea _pos,%a5	|,
-	move.w (%a5),%d6	| pos.x, _66
+	move.w (%a5),%d6	| pos.x, _56
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+	move.w _pos+2,%d5	| pos.y, _62
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
 	move.w _pos+6,100(%sp)	| pos.dirx, %sfp
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
 	move.w _pos+8,98(%sp)	| pos.diry, %sfp
 	lea (24,%sp),%sp	|,
-| voxel.c:660: 	for(int i=0; i<FRAMES; i++) {
+| voxel.c:707: 	for(int i=0; i<FRAMES; i++) {
 	clr.l 102(%sp)	| %sfp
-| voxel.c:658: 	int last_player_altitude = 40;
+| voxel.c:705: 	int last_player_altitude = 40;
 	moveq #40,%d1	|,
 	move.l %d1,98(%sp)	|, %sfp
-	lea _combined,%a4	|, tmp602
-.L271:
+	lea _combined,%a4	|, tmp562
+.L291:
 | voxel.c:106: 	return *hw_palette;
-	move.l _hw_palette,%a0	| hw_palette, hw_palette.61_238
-	move.w (%a0),%d0	| *hw_palette.61_238, _239
+	move.l _hw_palette,%a0	| hw_palette, hw_palette.63_198
+	move.w (%a0),%d0	| *hw_palette.63_198, _199
 | voxel.c:148: 	return ((unsigned short)val) >> FIXP_PRECISION;
-	move.w %d5,%d0	| _72, tmp414
-	lsr.w #7,%d0	|, tmp414
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
-	and.l #65535,%d0	|, tmp415
+	move.w %d5,%d0	| _62, tmp375
+	lsr.w #7,%d0	|, tmp375
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+	and.l #65535,%d0	|, tmp376
 | voxel.c:148: 	return ((unsigned short)val) >> FIXP_PRECISION;
-	move.w %d6,%d1	| _66, tmp416
-	lsr.w #7,%d1	|, tmp416
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
-	and.l #65535,%d1	|, tmp417
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+	move.w %d6,%d1	| _56, tmp377
+	lsr.w #7,%d1	|, tmp377
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+	and.l #65535,%d1	|, tmp378
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
 	moveq #9,%d2	|,
-	lsl.l %d2,%d0	|, tmp418
-	add.l %d1,%d0	| tmp417, tmp419
-	add.l %d0,%d0	| tmp419, tmp420
-| voxel.c:664: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
-	move.b 1(%a4,%d0.l),%d0	| combined[_28][_31].D.2687.height, height_under_player
+	lsl.l %d2,%d0	|, tmp379
+	add.l %d1,%d0	| tmp378, tmp380
+	add.l %d0,%d0	| tmp380, tmp381
+| voxel.c:711: 		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
+	move.b 1(%a4,%d0.l),%d0	| combined[_19][_21].D.2689.height, height_under_player
 	and.l #255,%d0	|, height_under_player
-| voxel.c:665: 		int player_altitude = height_under_player + 20;
-	moveq #20,%d3	|,
-	add.l %d3,%d0	|, player_altitude
-| voxel.c:667: 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
-	move.l 98(%sp),%d1	| %sfp, tmp425
-	addq.l #2,%d1	|, tmp425
-| voxel.c:667: 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
-	cmp.l #255,%d1	|, tmp425
-	jle .L249		|
-	moveq #0,%d1	|, tmp425
-	not.b %d1	| tmp425
-.L249:
-	cmp.l %d0,%d1	| player_altitude, tmp425
-	jge .L250		|
-	move.l %d1,%d0	| tmp425, player_altitude
-.L250:
-| voxel.c:668: 		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
-	move.l 98(%sp),%d1	| %sfp, tmp426
-	subq.l #2,%d1	|, tmp426
-| voxel.c:668: 		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
+| voxel.c:712: 		int player_altitude = height_under_player + 20;
+	moveq #20,%d1	|,
+	add.l %d1,%d0	|, player_altitude
+| voxel.c:714: 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
+	move.l 98(%sp),%d1	| %sfp, tmp386
+	addq.l #2,%d1	|, tmp386
+| voxel.c:714: 		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
+	cmp.l #255,%d1	|, tmp386
+	jle .L269		|
+	moveq #0,%d1	|, tmp386
+	not.b %d1	| tmp386
+.L269:
+	cmp.l %d0,%d1	| player_altitude, tmp386
+	jge .L270		|
+	move.l %d1,%d0	| tmp386, player_altitude
+.L270:
+| voxel.c:715: 		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
+	move.l 98(%sp),%d1	| %sfp, tmp387
+	subq.l #2,%d1	|, tmp387
+| voxel.c:715: 		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
 	move.l %d0,98(%sp)	| player_altitude, %sfp
-	cmp.l %d0,%d1	| player_altitude, tmp426
-	jle .L251		|
-	move.l %d1,98(%sp)	| tmp426, %sfp
-.L251:
-| voxel.c:671: 		short mouse_x = GCURX, mouse_y = GCURY;
-	move.l ___aline,%a0	| __aline, __aline.55_35
-| voxel.c:672: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-	move.w 104(%sp),%d0	| %sfp, tmp427
-	lsl.w #3,%d0	|, tmp427
-	and.w #8,%d0	|, _38
-| voxel.c:672: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-	addq.w #3,%d0	|, _38
-	move.w %d0,46(%sp)	| _38, %sfp
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
-	move.w -600(%a0),%a1	| MEM[(short int *)__aline.55_35 + 4294966696B],
+	cmp.l %d0,%d1	| player_altitude, tmp387
+	jle .L271		|
+	move.l %d1,98(%sp)	| tmp387, %sfp
+.L271:
+| voxel.c:718: 		short mouse_x = GCURX, mouse_y = GCURY;
+	move.l ___aline,%a0	| __aline, __aline.57_25
+| voxel.c:719: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+	move.w 104(%sp),%d0	| %sfp, tmp388
+	lsl.w #3,%d0	|, tmp388
+	and.w #8,%d0	|, _28
+| voxel.c:719: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+	addq.w #3,%d0	|, _28
+	move.w %d0,46(%sp)	| _28, %sfp
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+	move.w -600(%a0),%a1	| MEM[(short int *)__aline.57_25 + 4294966696B],
 	move.l %a1,106(%sp)	|, %sfp
-	moveq #-100,%d0	|, tmp428
-	add.l %a1,%d0	|, tmp428
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
-	asr.l #2,%d0	|, tmp428
-	move.l %d0,78(%sp)	| tmp428, %sfp
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
-	move.w -602(%a0),%a0	| MEM[(short int *)__aline.55_35 + 4294966694B],
+	moveq #-100,%d0	|, tmp389
+	add.l %a1,%d0	|, tmp389
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+	asr.l #2,%d0	|, tmp389
+	move.l %d0,78(%sp)	| tmp389, %sfp
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+	move.w -602(%a0),%a0	| MEM[(short int *)__aline.57_25 + 4294966694B],
 	move.l %a0,110(%sp)	|, %sfp
-	move.l %a0,%d0	|, tmp429
-	add.l #-160,%d0	|, tmp429
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
-	asr.l #2,%d0	|, _44
+	move.l %a0,%d0	|, tmp390
+	add.l #-160,%d0	|, tmp390
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+	asr.l #2,%d0	|, _34
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-	swap %d5	| tmp431
-	clr.w %d5	| tmp431
+	swap %d5	| tmp392
+	clr.w %d5	| tmp392
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-	or.w %d6,%d5	| _66, tmp433
+	or.w %d6,%d5	| _56, tmp394
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-	and.l #-65538,%d5	|, tmp433
-	move.l %d5,82(%sp)	| tmp433, %sfp
+	and.l #-65538,%d5	|, tmp394
+	move.l %d5,82(%sp)	| tmp394, %sfp
 | voxel.c:375: 	short ytable_offset = 256 - player_height;
 	move.w #256,%a0	|, ytable_offset
 	sub.w 100(%sp),%a0	| %sfp, ytable_offset
 | voxel.c:400: 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z] + ytable_offset);
 	move.w %a0,%a0	| ytable_offset, ytable_offset
-	add.l %a0,%a0	| ytable_offset, tmp436
+	add.l %a0,%a0	| ytable_offset, tmp397
 | voxel.c:400: 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z] + ytable_offset);
-	add.l #_y_table+4096,%a0	|, tmp436
-	move.l %a0,90(%sp)	| tmp436, %sfp
+	add.l #_y_table+4096,%a0	|, tmp397
+	move.l %a0,90(%sp)	| tmp397, %sfp
 | voxel.c:476: 	unsigned int movep_data = pdata_table[color][MAX_OPACITY][0];
 	move.l _pdata_table+4064,94(%sp)	| pdata_table[15][7][0], %sfp
-	move.l %d0,%d1	| _44,
+	move.l %d0,%d1	| _34,
 	lsl.l #4,%d1	|,
 	move.l %d1,86(%sp)	|, %sfp
 	moveq #0,%d2	| x
 	move.w 46(%sp),%d2	| %sfp, x
-	move.l %d0,-(%sp)	| _44,
+	move.l %d0,-(%sp)	| _34,
 	move.l %d2,%a0	| x,
 	pea -160(%a0)		|
 	jsr ___mulsi3		|
 	addq.l #8,%sp	|,
-	move.l %d0,58(%sp)	| tmp624, %sfp
-	add.l %d2,%d2	| x, tmp444
-	add.l #_horizon,%d2	|, tmp444
-	move.l %d2,52(%sp)	| tmp444, %sfp
+	move.l %d0,58(%sp)	| tmp581, %sfp
+	add.l %d2,%d2	| x, tmp405
+	add.l #_horizon,%d2	|, tmp405
+	move.l %d2,52(%sp)	| tmp405, %sfp
 	moveq #0,%d0	|
 	move.b _max_height,%d0	| max_height,
 	move.l %d0,%a5	|, max_height
 	add.l %a5,%a5	| max_height, max_height
 	move.l %a5,48(%sp)	| max_height, %sfp
-.L268:
-| voxel.c:678: 			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
-	move.w 46(%sp),%d0	| %sfp, tmp448
-	lsr.w #3,%d0	|, tmp448
-	and.l #65535,%d0	|, _50
-| voxel.c:678: 			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
-	add.l %d0,%d0	| _50, tmp450
+.L288:
+| voxel.c:725: 			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
+	move.w 46(%sp),%d0	| %sfp, tmp409
+	lsr.w #3,%d0	|, tmp409
+	and.l #65535,%d0	|, _40
+| voxel.c:725: 			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
+	add.l %d0,%d0	| _40, tmp411
 	lea _view_max,%a0	|,
-	move.w (%a0,%d0.l),%d3	| view_max[_50], _907
+	move.w (%a0,%d0.l),%d3	| view_max[_40], _846
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
-	move.w 46(%sp),%d1	| %sfp, _328
-	add.w #-160,%d1	|, _328
+	move.w 46(%sp),%d1	| %sfp, _289
+	add.w #-160,%d1	|, _289
 | voxel.c:379: 		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
 	move.w 76(%sp),%d4	| %sfp,
-	muls.w %d1,%d4	| _328, tmp451
+	muls.w %d1,%d4	| _289, tmp412
 | voxel.c:379: 		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
-	asr.l #8,%d4	|, tmp452
+	asr.l #8,%d4	|, tmp413
 | voxel.c:379: 		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
-	add.w 74(%sp),%d4	| %sfp, tmp453
+	add.w 74(%sp),%d4	| %sfp, tmp414
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-	swap %d4	| tmp455
-	clr.w %d4	| tmp455
+	swap %d4	| tmp416
+	clr.w %d4	| tmp416
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
-	muls.w 74(%sp),%d1	| %sfp, tmp456
+	muls.w 74(%sp),%d1	| %sfp, tmp417
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
-	asr.l #8,%d1	|, tmp457
+	asr.l #8,%d1	|, tmp418
 | voxel.c:380: 		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
-	move.w 76(%sp),%d2	| %sfp, tmp458
-	sub.w %d1,%d2	| tmp457, tmp458
+	move.w 76(%sp),%d2	| %sfp, tmp419
+	sub.w %d1,%d2	| tmp418, tmp419
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-	or.w %d2,%d4	| tmp458, tmp460
+	or.w %d2,%d4	| tmp419, tmp421
 | voxel.c:168: 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
 	and.l #-65538,%d4	|, delta_vu
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	move.l 82(%sp),%d2	| %sfp, tmp461
-	add.l %d4,%d2	| delta_vu, tmp461
+	move.l 82(%sp),%d2	| %sfp, tmp422
+	add.l %d4,%d2	| delta_vu, tmp422
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	and.l #-65538,%d2	|, tmp462
+	and.l #-65538,%d2	|, tmp423
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d2	| delta_vu, tmp463
+	add.l %d4,%d2	| delta_vu, tmp424
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	and.l #-65538,%d2	|, tmp464
+	and.l #-65538,%d2	|, tmp425
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d2	| delta_vu, tmp465
+	add.l %d4,%d2	| delta_vu, tmp426
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	and.l #-65538,%d2	|, tmp466
+	and.l #-65538,%d2	|, tmp427
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d2	| delta_vu, tmp467
+	add.l %d4,%d2	| delta_vu, tmp428
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
 	and.l #-65538,%d2	|, sample_vu
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	move.w 46(%sp),%d1	| %sfp, tmp468
-	asr.w #4,%d1	|, tmp468
-	ext.l %d1	| tmp469
+	move.w 46(%sp),%d1	| %sfp, tmp429
+	asr.w #4,%d1	|, tmp429
+	ext.l %d1	| tmp430
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %d1,%d1	| tmp469, tmp470
-	add.l %d1,%d1	| tmp470, tmp470
-	move.l %d1,62(%sp)	| tmp470, %sfp
+	add.l %d1,%d1	| tmp430, tmp431
+	add.l %d1,%d1	| tmp431, tmp431
+	move.l %d1,62(%sp)	| tmp431, %sfp
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
 	move.w 46(%sp),%d1	| %sfp,
-	lsr.l #3,%d1	|, tmp473
+	lsr.l #3,%d1	|, tmp434
 	moveq #1,%d5	|,
-	and.l %d1,%d5	| tmp473,
+	and.l %d1,%d5	| tmp434,
 	move.l %d5,66(%sp)	|, %sfp
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	move.w %d3,%d1	| _907,
-	muls.w #80,%d1	|, tmp474
+	move.w %d3,%d1	| _846,
+	muls.w #80,%d1	|, tmp435
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l 62(%sp),%d1	| %sfp, tmp476
+	add.l 62(%sp),%d1	| %sfp, tmp437
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %d1,%d1	| tmp476, tmp477
+	add.l %d1,%d1	| tmp437, tmp438
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %d5,%d1	|, tmp478
+	add.l %d5,%d1	|, tmp439
 	move.l 70(%sp),%a2	| %sfp, pBlock
-	add.l %d1,%a2	| tmp478, pBlock
+	add.l %d1,%a2	| tmp439, pBlock
 | voxel.c:394: 	y_offset -= y_min;
 	lea _view_min,%a0	|,
-	move.w (%a0,%d0.l),56(%sp)	| view_min[_50], %sfp
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+	move.w (%a0,%d0.l),56(%sp)	| view_min[_40], %sfp
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
 	pea -160.w		|
 	move.l 62(%sp),-(%sp)	| %sfp,
 	jsr ___divsi3		|
 	addq.l #8,%sp	|,
-| voxel.c:674: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+| voxel.c:721: 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
 	move.l 78(%sp),%a6	| %sfp, y_offset
-	add.l %d0,%a6	| tmp625, y_offset
+	add.l %d0,%a6	| tmp582, y_offset
 | voxel.c:394: 	y_offset -= y_min;
-	sub.w 56(%sp),%a6	| %sfp, _367
+	sub.w 56(%sp),%a6	| %sfp, _328
 | voxel.c:396: 	short y = y_max - y_min;
-	move.w %d3,%a0	| _907, _903
-	move.w %d3,%d0	| _907, y
+	move.w %d3,%a0	| _846, _842
+	move.w %d3,%d0	| _846, y
 	sub.w 56(%sp),%d0	| %sfp, y
 | voxel.c:406: 		if (y < 0) goto done;
-	jmi .L252		|
-	lea _opacity_table+4,%a3	|, ivtmp.543
+	jmi .L272		|
+	lea _opacity_table+4,%a3	|, ivtmp.558
 | voxel.c:400: 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z] + ytable_offset);
 	move.l 90(%sp),%a1	| %sfp, y_table_shifted
 | voxel.c:397: 	unsigned short z = STEPS_MIN;
 	moveq #4,%d5	|, z
 | voxel.c:391: 	unsigned int index_mask = 0x7ffff;
 	move.l #524287,%d6	|, index_mask
-.L254:
+.L274:
 | voxel.c:408: 		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_shifted[0][max_height]) {
 	cmp.w #99,%d0	|, y
-	jgt .L255		|
+	jgt .L275		|
 | voxel.c:408: 		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_shifted[0][max_height]) {
 	move.l 48(%sp),%a5	| %sfp,
-	cmp.w (%a1,%a5.l),%d0	| MEM[(short int *)y_table_shifted_491 + _815 * 1], y
-	jle .L302		|
-.L255:
+	cmp.w (%a1,%a5.l),%d0	| MEM[(short int *)y_table_shifted_432 + _772 * 1], y
+	jle .L318		|
+.L275:
 | voxel.c:337: 	asm (
 #APP
 | 337 "voxel.c" 1
@@ -3494,127 +3598,127 @@ _main:
 #NO_APP
 	and.l %d6,%d1	| index_mask, index
 | voxel.c:414: 		sample.both = ((sample_t*)((char*)combined + index))->both;
-	move.w (%a4,%d1.l),%d7	| _384->both, _385
+	move.w (%a4,%d1.l),%d7	| _345->both, _346
 | voxel.c:415: 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
-	moveq #0,%d1	| _385
-	move.b %d7,%d1	| _385, _385
+	moveq #0,%d1	| _346
+	move.b %d7,%d1	| _346, _346
 | voxel.c:415: 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
-	add.l %d1,%d1	| _385, tmp492
+	add.l %d1,%d1	| _346, tmp453
 | voxel.c:415: 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
-	move.w %a6,%d3	| _367, sample_y
-	add.w (%a1,%d1.l),%d3	| (*y_table_shifted_491)[_387], sample_y
+	move.w %a6,%d3	| _328, sample_y
+	add.w (%a1,%d1.l),%d3	| (*y_table_shifted_432)[_348], sample_y
 | voxel.c:471: 	return y + y_min;
-	move.w %d0,%a0	| y, prephitmp_898
+	move.w %d0,%a0	| y, prephitmp_837
 | voxel.c:416: 		if (sample_y <= y) {
 	cmp.w %d3,%d0	| sample_y, y
-	jlt .L256		|
+	jlt .L276		|
 | voxel.c:418: 			if (z < FOG_START) {
 	cmp.w #39,%d5	|, z
-	jhi .L257		|
+	jhi .L277		|
 | voxel.c:361: 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted + ((y&7) << 2);
-	and.w #-256,%d7	|, tmp493
+	and.w #-256,%d7	|, tmp454
 | voxel.c:361: 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted + ((y&7) << 2);
-	move.w %d7,%d1	| tmp493, tmp494
-	add.w #224,%d1	|, tmp494
+	move.w %d7,%d1	| tmp454, tmp455
+	add.w #224,%d1	|, tmp455
 | voxel.c:362: 	return *(unsigned int *)((char*)pdata_table + offset);
-	and.l #65535,%d1	|, tmp495
+	and.l #65535,%d1	|, tmp456
 | voxel.c:362: 	return *(unsigned int *)((char*)pdata_table + offset);
 	lea _pdata_table,%a5	|,
-	move.l (%a5,%d1.l),%d1	| *_396, _397
+	move.l (%a5,%d1.l),%d1	| *_357, _358
 | voxel.c:425: 				if (sample_y < 0) sample_y = 0;
-	tst.w %d3	| _398
-	jlt .L303		|
-.L258:
+	tst.w %d3	| _359
+	jlt .L319		|
+.L278:
 | voxel.c:426: 				while (y >= sample_y) {
-	cmp.w %d3,%d0	| _398, y
-	jlt .L259		|
-	sub.w %d3,%d0	| _398, tmp497
-	and.l #65535,%d0	|, tmp498
-	addq.l #1,%d0	|, tmp499
-	move.l %d0,%a0	| tmp499, tmp501
-	add.l %d0,%a0	| tmp499, tmp501
-	add.l %a0,%a0	| tmp501, tmp502
-	move.l %a0,%d7	| tmp502, tmp503
-	add.l %d0,%d7	| tmp499, tmp503
-	lsl.l #5,%d7	|, tmp504
-	move.l %a2,%d0	| pBlock, _805
-	sub.l %d7,%d0	| tmp504, _805
-.L260:
+	cmp.w %d3,%d0	| _359, y
+	jlt .L279		|
+	sub.w %d3,%d0	| _359, tmp458
+	and.l #65535,%d0	|, tmp459
+	addq.l #1,%d0	|, tmp460
+	move.l %d0,%a0	| tmp460, tmp462
+	add.l %d0,%a0	| tmp460, tmp462
+	add.l %a0,%a0	| tmp462, tmp463
+	move.l %a0,%d7	| tmp463, tmp464
+	add.l %d0,%d7	| tmp460, tmp464
+	lsl.l #5,%d7	|, tmp465
+	move.l %a2,%d0	| pBlock, _762
+	sub.l %d7,%d0	| tmp465, _762
+.L280:
 | voxel.c:329: 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 #APP
 | 329 "voxel.c" 1
-	movep.l %d1, 0(%a2)	| _397, pBlock
+	movep.l %d1, 0(%a2)	| _358, pBlock
 | 0 "" 2
 | voxel.c:428: 					pBlock -= 160*LINES_SKIP;
 #NO_APP
 	lea (-160,%a2),%a2	|, pBlock
 | voxel.c:426: 				while (y >= sample_y) {
-	cmp.l %a2,%d0	| pBlock, _805
-	jne .L260		|
-	move.w %d3,%a0	| _398, prephitmp_898
-	subq.w #1,%a0	|, prephitmp_898
-	move.w %a0,%d0	| prephitmp_898, y
-.L259:
+	cmp.l %a2,%d0	| pBlock, _762
+	jne .L280		|
+	move.w %d3,%a0	| _359, prephitmp_837
+	subq.w #1,%a0	|, prephitmp_837
+	move.w %a0,%d0	| prephitmp_837, y
+.L279:
 | voxel.c:455: 		z++;
 	addq.w #1,%d5	|, z
 | voxel.c:456: 		y_table_shifted++;
 	lea (1024,%a1),%a1	|, y_table_shifted
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d2	| delta_vu, tmp591
+	add.l %d4,%d2	| delta_vu, tmp552
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
 	and.l #-65538,%d2	|, sample_vu
 | voxel.c:459: 		if (TRIGGERS_PROGRESSION(z)) {
-	move.w %d5,%d1	| z, tmp592
-	and.w #15,%d1	|, tmp592
-	jne .L265		|
+	move.w %d5,%d1	| z, tmp553
+	and.w #15,%d1	|, tmp553
+	jne .L285		|
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d4	| delta_vu, tmp519
+	add.l %d4,%d4	| delta_vu, tmp480
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
 	and.l #-65538,%d4	|, delta_vu
 | voxel.c:466: 			index_mask = (index_mask << 1) & 0x7fbfd;
-	add.l %d6,%d6	| index_mask, tmp520
+	add.l %d6,%d6	| index_mask, tmp481
 | voxel.c:466: 			index_mask = (index_mask << 1) & 0x7fbfd;
 	and.l #523261,%d6	|, index_mask
-.L264:
+.L284:
 | voxel.c:402: 	while(z < STEPS_MAX /*&& y >= y_min*/) {
 	cmp.w #64,%d5	|, z
-	jeq .L299		|
-.L265:
+	jeq .L314		|
+.L285:
 | voxel.c:406: 		if (y < 0) goto done;
-	addq.l #1,%a3	|, ivtmp.543
+	addq.l #1,%a3	|, ivtmp.558
 	cmp.w #-1,%d0	|, y
-	jne .L254		|
-.L299:
+	jne .L274		|
+.L314:
 | voxel.c:471: 	return y + y_min;
-	add.w 56(%sp),%a0	| %sfp, _903
-	move.w %a0,%d3	| _903, _907
-.L252:
+	add.w 56(%sp),%a0	| %sfp, _842
+	move.w %a0,%d3	| _842, _846
+.L272:
 | voxel.c:485: 	fill_column(out, x, horizon[x]+1, y - horizon[x], 15);
 	move.l 52(%sp),%a1	| %sfp,
-	move.w (%a1),%d0	| MEM[(short int *)_834], _282
+	move.w (%a1),%d0	| MEM[(short int *)_791], _243
 | voxel.c:485: 	fill_column(out, x, horizon[x]+1, y - horizon[x], 15);
-	sub.w %d0,%a0	| _282, _283
+	sub.w %d0,%a0	| _243, _244
 | voxel.c:485: 	fill_column(out, x, horizon[x]+1, y - horizon[x], 15);
-	addq.w #1,%d0	|, tmp521
+	addq.w #1,%d0	|, tmp482
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	muls.w #80,%d0	|, tmp522
+	muls.w #80,%d0	|, tmp483
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l 62(%sp),%d0	| %sfp, tmp524
+	add.l 62(%sp),%d0	| %sfp, tmp485
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l %d0,%d0	| tmp524, tmp525
+	add.l %d0,%d0	| tmp485, tmp486
 | voxel.c:324: 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
-	add.l 66(%sp),%d0	| %sfp, tmp526
+	add.l 66(%sp),%d0	| %sfp, tmp487
 	move.l 70(%sp),%a1	| %sfp, pBlock
-	add.l %d0,%a1	| tmp526, pBlock
+	add.l %d0,%a1	| tmp487, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
 	clr.w %d0	|
-	cmp.w %a0,%d0	| _283,
-	jge .L266		|
-	move.w %a0,%d1	| _283,
+	cmp.w %a0,%d0	| _244,
+	jge .L286		|
+	move.w %a0,%d1	| _244,
 	mulu.w #160,%d1	|,
-	lea (%a1,%d1.l),%a0	| pBlock, tmp527, _798
+	lea (%a1,%d1.l),%a0	| pBlock, tmp488, _755
 	move.l 94(%sp),%d0	| %sfp, movep_data
-.L267:
+.L287:
 | voxel.c:329: 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 #APP
 | 329 "voxel.c" 1
@@ -3624,355 +3728,370 @@ _main:
 #NO_APP
 	lea (160,%a1),%a1	|, pBlock
 | voxel.c:477: 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
-	cmp.l %a1,%a0	| pBlock, _798
-	jne .L267		|
-.L266:
+	cmp.l %a1,%a0	| pBlock, _755
+	jne .L287		|
+.L286:
 | voxel.c:486: 	horizon[x] = y;
 	move.l 52(%sp),%a0	| %sfp,
-	move.w %d3,(%a0)	| _907, MEM[(short int *)_834]
-| voxel.c:672: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+	move.w %d3,(%a0)	| _846, MEM[(short int *)_791]
+| voxel.c:719: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
 	add.w #16,46(%sp)	|, %sfp
-| voxel.c:672: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+| voxel.c:719: 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
 	move.l 86(%sp),%d1	| %sfp,
 	add.l %d1,58(%sp)	|, %sfp
 	moveq #32,%d2	|,
 	add.l %d2,52(%sp)	|, %sfp
 	cmp.w #319,46(%sp)	|, %sfp
-	jls .L268		|
-| voxel.c:682: 		compute_and_set_bottom_palette(i);
+	jls .L288		|
+| voxel.c:729: 		compute_and_set_bottom_palette(i);
 	move.l 102(%sp),-(%sp)	| %sfp,
 	jsr _compute_and_set_bottom_palette		|
-| voxel.c:683: 		pos.x += fixp_mul(pos.dirx, pos.speed);
-	move.w _pos+10,%d0	| pos.speed, _60
-| voxel.c:683: 		pos.x += fixp_mul(pos.dirx, pos.speed);
-	move.w _pos+6,%d2	| pos.dirx, _61
+| voxel.c:730: 		pos.x += fixp_mul(pos.dirx, pos.speed);
+	move.w _pos+10,%d0	| pos.speed, _50
+| voxel.c:730: 		pos.x += fixp_mul(pos.dirx, pos.speed);
+	move.w _pos+6,%d2	| pos.dirx, _51
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d2,%d6	| _61,
-	muls.w %d0,%d6	| _60, tmp532
+	move.w %d2,%d6	| _51,
+	muls.w %d0,%d6	| _50, tmp493
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d6	|, tmp533
-| voxel.c:683: 		pos.x += fixp_mul(pos.dirx, pos.speed);
+	asr.l #7,%d6	|, tmp494
+| voxel.c:730: 		pos.x += fixp_mul(pos.dirx, pos.speed);
 	lea _pos,%a0	|,
-	add.w (%a0),%d6	| pos.x, _66
-	move.w %d6,(%a0)	| _66, pos.x
-| voxel.c:684: 		pos.y += fixp_mul(pos.diry, pos.speed);
-	move.w _pos+8,%d3	| pos.diry, _67
+	add.w (%a0),%d6	| pos.x, _56
+	move.w %d6,(%a0)	| _56, pos.x
+| voxel.c:731: 		pos.y += fixp_mul(pos.diry, pos.speed);
+	move.w _pos+8,%d3	| pos.diry, _57
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d3,%a0	| _67, _240
+	move.w %d3,%a0	| _57, _200
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d3,%d5	| _67,
-	muls.w %d0,%d5	| _60, tmp537
+	move.w %d3,%d5	| _57,
+	muls.w %d0,%d5	| _50, tmp498
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d5	|, tmp538
-| voxel.c:684: 		pos.y += fixp_mul(pos.diry, pos.speed);
-	add.w _pos+2,%d5	| pos.y, _72
-| voxel.c:686: 		pos.speed += (100 - mouse_y) >> 2;
-	moveq #100,%d1	|, tmp540
-	sub.l 110(%sp),%d1	| %sfp, tmp540
-| voxel.c:686: 		pos.speed += (100 - mouse_y) >> 2;
-	asr.l #2,%d1	|, tmp541
-| voxel.c:686: 		pos.speed += (100 - mouse_y) >> 2;
-	add.w %d1,%d0	| tmp541, _78
-| voxel.c:687: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
-	move.w %d0,%d1	| _78, tmp542
-	asr.w #3,%d1	|, tmp542
-| voxel.c:687: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
-	move.w %d0,%d4	| _78, tmp543
-	asr.w #4,%d4	|, tmp543
-| voxel.c:687: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
-	muls.w %d4,%d1	| tmp543, tmp544
-| voxel.c:687: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
-	asr.l #4,%d1	|, _85
-| voxel.c:688: 		if (pos.speed > 0) pos.speed -= drag;
+	asr.l #7,%d5	|, tmp499
+| voxel.c:731: 		pos.y += fixp_mul(pos.diry, pos.speed);
+	add.w _pos+2,%d5	| pos.y, _62
+| voxel.c:733: 		pos.speed += (100 - mouse_y) >> 2;
+	moveq #100,%d1	|, tmp501
+	sub.l 110(%sp),%d1	| %sfp, tmp501
+| voxel.c:733: 		pos.speed += (100 - mouse_y) >> 2;
+	asr.l #2,%d1	|, tmp502
+| voxel.c:733: 		pos.speed += (100 - mouse_y) >> 2;
+	add.w %d1,%d0	| tmp502, _68
+| voxel.c:734: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
+	move.w %d0,%d1	| _68, tmp503
+	asr.w #3,%d1	|, tmp503
+| voxel.c:734: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
+	move.w %d0,%d4	| _68, tmp504
+	asr.w #4,%d4	|, tmp504
+| voxel.c:734: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
+	muls.w %d4,%d1	| tmp504, tmp505
+| voxel.c:734: 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
+	asr.l #4,%d1	|, _75
+| voxel.c:735: 		if (pos.speed > 0) pos.speed -= drag;
 	addq.l #4,%sp	|,
-	tst.w %d0	| _78
-	jle .L269		|
-| voxel.c:688: 		if (pos.speed > 0) pos.speed -= drag;
-	sub.w %d1,%d0	| _85, _88
-| voxel.c:684: 		pos.y += fixp_mul(pos.diry, pos.speed);
-	move.w %d5,_pos+2	| _72, pos.y
-| voxel.c:688: 		if (pos.speed > 0) pos.speed -= drag;
-	move.w %d0,_pos+10	| _88, pos.speed
-| voxel.c:690: 		fixp rot = (160 - mouse_x) >> 4;
-	moveq #95,%d4	|, tmp547
-	not.b %d4	| tmp547
-	sub.l 110(%sp),%d4	| %sfp, tmp547
-| voxel.c:690: 		fixp rot = (160 - mouse_x) >> 4;
-	asr.l #4,%d4	|, _94
+	tst.w %d0	| _68
+	jle .L289		|
+| voxel.c:735: 		if (pos.speed > 0) pos.speed -= drag;
+	sub.w %d1,%d0	| _75, _78
+| voxel.c:731: 		pos.y += fixp_mul(pos.diry, pos.speed);
+	move.w %d5,_pos+2	| _62, pos.y
+| voxel.c:735: 		if (pos.speed > 0) pos.speed -= drag;
+	move.w %d0,_pos+10	| _78, pos.speed
+| voxel.c:737: 		fixp rot = (160 - mouse_x) >> 4;
+	moveq #95,%d4	|, tmp508
+	not.b %d4	| tmp508
+	sub.l 110(%sp),%d4	| %sfp, tmp508
+| voxel.c:737: 		fixp rot = (160 - mouse_x) >> 4;
+	asr.l #4,%d4	|, _84
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a0,-(%sp)	| _240,
-	move.l %d4,-(%sp)	| _94,
+	move.l %a0,-(%sp)	| _200,
+	move.l %d4,-(%sp)	| _84,
 	jsr ___mulsi3		|
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp550
-| voxel.c:691: 		pos.dirx += fixp_mul(rot, pos.diry);
-	add.w %d0,%d2	| tmp550, _98
+	asr.l #7,%d0	|, tmp511
+| voxel.c:738: 		pos.dirx += fixp_mul(rot, pos.diry);
+	add.w %d0,%d2	| tmp511, _88
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d4,-(%sp)	| _94,
-	move.w %d2,%a1	| _98,
+	move.l %d4,-(%sp)	| _84,
+	move.w %d2,%a1	| _88,
 	move.l %a1,-(%sp)	|,
 	jsr ___mulsi3		|
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp554
-| voxel.c:692: 		pos.diry -= fixp_mul(rot, pos.dirx);
-	move.w %d3,%d1	| _67, _102
-	sub.w %d0,%d1	| tmp554, _102
+	asr.l #7,%d0	|, tmp515
+| voxel.c:739: 		pos.diry -= fixp_mul(rot, pos.dirx);
+	move.w %d3,%d1	| _57, _92
+	sub.w %d0,%d1	| tmp515, _92
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d2,%d0	| _98,
-	muls.w %d2,%d0	| _98, tmp555
+	move.w %d2,%d0	| _88,
+	muls.w %d2,%d0	| _88, tmp516
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp556
+	asr.l #7,%d0	|, tmp517
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d1,%d3	| _102,
-	muls.w %d1,%d3	| _102, tmp557
+	move.w %d1,%d3	| _92,
+	muls.w %d1,%d3	| _92, tmp518
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d3	|, tmp558
-| voxel.c:695: 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
-	add.w %d3,%d0	| tmp558, tmp559
+	asr.l #7,%d3	|, tmp519
+| voxel.c:742: 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
+	add.w %d3,%d0	| tmp519, tmp520
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w %d0,%a0	| tmp559, tmp560
-	moveq #-128,%d0	|, tmp561
-	add.l %a0,%d0	| tmp560, tmp561
+	move.w %d0,%a0	| tmp520, tmp521
+	moveq #-128,%d0	|, tmp522
+	add.l %a0,%d0	| tmp521, tmp522
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp562
+	asr.l #1,%d0	|, tmp523
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%d3	|, _259
-	sub.w %d0,%d3	| tmp562, _259
+	move.w #128,%d3	|, _219
+	sub.w %d0,%d3	| tmp523, _219
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d3,%d0	| _259,
-	muls.w %d2,%d0	| _98, tmp563
+	move.w %d3,%d0	| _219,
+	muls.w %d2,%d0	| _88, tmp524
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp564
+	asr.l #7,%d0	|, tmp525
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d0,76(%sp)	| tmp564, %sfp
+	move.w %d0,76(%sp)	| tmp525, %sfp
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	muls.w %d3,%d1	| _259, tmp565
+	muls.w %d3,%d1	| _219, tmp526
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d1	|, tmp566
+	asr.l #7,%d1	|, tmp527
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d1,74(%sp)	| tmp566, %sfp
-| voxel.c:696: 		pos.dirx = fixp_mul(factor, pos.dirx);
-	swap %d0	| _249
-	clr.w %d0	| _249
-	move.w %d1,%d0	| tmp566, _249
-	move.l %d0,_pos+6	| _249, MEM <vector(2) short int> [(short int *)&pos + 6B]
-| voxel.c:660: 	for(int i=0; i<FRAMES; i++) {
+	move.w %d1,74(%sp)	| tmp527, %sfp
+| voxel.c:743: 		pos.dirx = fixp_mul(factor, pos.dirx);
+	swap %d0	| _209
+	clr.w %d0	| _209
+	move.w %d1,%d0	| tmp527, _209
+	move.l %d0,_pos+6	| _209, MEM <vector(2) short int> [(short int *)&pos + 6B]
+| voxel.c:707: 	for(int i=0; i<FRAMES; i++) {
 	addq.l #1,102(%sp)	|, %sfp
-| voxel.c:660: 	for(int i=0; i<FRAMES; i++) {
+| voxel.c:707: 	for(int i=0; i<FRAMES; i++) {
 	cmp.l #800,102(%sp)	|, %sfp
-	jne .L271		|
-.L305:
-| voxel.c:703: 	unsigned long t1 = *_hz_200;
+	jne .L291		|
+.L322:
+| voxel.c:750: 	unsigned long t1 = *_hz_200;
 	move.l 1210.w,%a0	| MEM[(volatile long unsigned int *)1210B], t1
-| voxel.c:704: 	unsigned long millis = (t1 - t0) * 5;
-	sub.l 114(%sp),%a0	| %sfp, tmp574
-| voxel.c:704: 	unsigned long millis = (t1 - t0) * 5;
-	move.l %a0,%d0	| tmp574, tmp576
-	add.l %a0,%d0	| tmp574, tmp576
-	add.l %d0,%d0	| tmp576, tmp577
-| voxel.c:705: 	unsigned long millis_per_frame = millis / FRAMES;
+| voxel.c:751: 	unsigned long millis = (t1 - t0) * 5;
+	sub.l 114(%sp),%a0	| %sfp, tmp535
+| voxel.c:751: 	unsigned long millis = (t1 - t0) * 5;
+	move.l %a0,%d0	| tmp535, tmp537
+	add.l %a0,%d0	| tmp535, tmp537
+	add.l %d0,%d0	| tmp537, tmp538
+| voxel.c:752: 	unsigned long millis_per_frame = millis / FRAMES;
 	move.l 102(%sp),-(%sp)	| %sfp,
 	pea (%a0,%d0.l)		|
 	jsr ___udivsi3		|
-| voxel.c:706: 	printf("Rendering took %dms per frame.\n", millis_per_frame);
+| voxel.c:753: 	printf("Rendering took %dms per frame.\n", millis_per_frame);
 	addq.l #4,%sp	|,
-	move.l %d0,(%sp)	| tmp628,
-	pea .LC10		|
+	move.l %d0,(%sp)	| tmp585,
+	pea .LC11		|
 	jsr _printf		|
-| voxel.c:707: 	uninstall_interrupts();
+| voxel.c:754: 	uninstall_interrupts();
 	jsr _uninstall_interrupts		|
 	addq.l #8,%sp	|,
-.L235:
-| voxel.c:710: 	printf("Press any key to exit to TOS.\n");
-	pea .LC11		|
+.L262:
+| voxel.c:757: 	printf("Press any key to exit to TOS.\n");
+	pea .LC12		|
 	jsr _puts		|
 | /Users/jonas/opt/cross-mint/m68k-atari-mint/sys-root/usr/include/stdio.h:545:   return __getc (stdin);
-	move.l _stdin,%a0	| stdin, stdin.63_181
-	move.l 4(%a0),%d0	| stdin.63_181->__bufp, _179
+	move.l _stdin,%a0	| stdin, stdin.65_150
+	move.l 4(%a0),%d0	| stdin.65_150->__bufp, _148
 	addq.l #4,%sp	|,
-	cmp.l 8(%a0),%d0	| stdin.63_181->__get_limit, _179
-	jcc .L272		|
-	addq.l #1,%d0	|, _179
-	move.l %d0,4(%a0)	| _179, stdin.63_181->__bufp
-| voxel.c:712: 	install_palette(saved_palette);
-	pea 160(%sp)		|
+	cmp.l 8(%a0),%d0	| stdin.65_150->__get_limit, _148
+	jcc .L292		|
+.L320:
+	addq.l #1,%d0	|, _148
+	move.l %d0,4(%a0)	| _148, stdin.65_150->__bufp
+| voxel.c:759: 	install_palette(saved_palette);
+	pea 132(%sp)		|
 	jsr _install_palette		|
-| voxel.c:714: }
+| voxel.c:761: }
 	addq.l #4,%sp	|,
 	moveq #0,%d0	|
 	movem.l (%sp)+,#31996	|,
-	lea (148,%sp),%sp	|,
+	lea (120,%sp),%sp	|,
 	rts	
-.L272:
+.L317:
+| voxel.c:682: 		printf("Failed to load voxel data.\n");
+	pea .LC7		|
+	jsr _puts		|
+| voxel.c:683: 		goto error;
+	addq.l #4,%sp	|,
+| voxel.c:757: 	printf("Press any key to exit to TOS.\n");
+	pea .LC12		|
+	jsr _puts		|
 | /Users/jonas/opt/cross-mint/m68k-atari-mint/sys-root/usr/include/stdio.h:545:   return __getc (stdin);
-	move.l %a0,-(%sp)	| stdin.63_181,
+	move.l _stdin,%a0	| stdin, stdin.65_150
+	move.l 4(%a0),%d0	| stdin.65_150->__bufp, _148
+	addq.l #4,%sp	|,
+	cmp.l 8(%a0),%d0	| stdin.65_150->__get_limit, _148
+	jcs .L320		|
+.L292:
+	move.l %a0,-(%sp)	| stdin.65_150,
 	jsr ___fillbf		|
 	addq.l #4,%sp	|,
-| voxel.c:712: 	install_palette(saved_palette);
-	pea 160(%sp)		|
+| voxel.c:759: 	install_palette(saved_palette);
+	pea 132(%sp)		|
 	jsr _install_palette		|
-| voxel.c:714: }
+| voxel.c:761: }
 	addq.l #4,%sp	|,
 	moveq #0,%d0	|
 	movem.l (%sp)+,#31996	|,
-	lea (148,%sp),%sp	|,
+	lea (120,%sp),%sp	|,
 	rts	
-.L303:
+.L319:
 | voxel.c:425: 				if (sample_y < 0) sample_y = 0;
-	clr.w %d3	| _398
-	jra .L258		|
-.L302:
+	clr.w %d3	| _359
+	jra .L278		|
+.L318:
 | voxel.c:471: 	return y + y_min;
-	move.w 56(%sp),%a0	| %sfp, _903
-	add.w %d0,%a0	| y, _903
-	move.w %a0,%d3	| _903, _907
-	jra .L252		|
-.L257:
+	move.w 56(%sp),%a0	| %sfp, _842
+	add.w %d0,%a0	| y, _842
+	move.w %a0,%d3	| _842, _846
+	jra .L272		|
+.L277:
 | voxel.c:425: 				if (sample_y < 0) sample_y = 0;
-	tst.w %d3	| _917
-	jlt .L304		|
-.L262:
+	tst.w %d3	| _856
+	jlt .L321		|
+.L282:
 | voxel.c:366: 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted;
 	clr.w %d1	| opacity_preshifted
-	move.b (%a3),%d1	| MEM[(unsigned char *)_813], opacity_preshifted
+	move.b (%a3),%d1	| MEM[(unsigned char *)_770], opacity_preshifted
 | voxel.c:361: 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted + ((y&7) << 2);
-	and.w #-256,%d7	|, _385
+	and.w #-256,%d7	|, _346
 | voxel.c:366: 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted;
-	add.w %d7,%d1	| tmp507, offset
+	add.w %d7,%d1	| tmp468, offset
 | voxel.c:367: 	return (unsigned int *)((char*)pdata_table + offset);
-	and.l #65535,%d1	|, _410
+	and.l #65535,%d1	|, _371
 | voxel.c:444: 				while (y >= sample_y) {
-	cmp.w %d0,%d3	| y, _917
-	jgt .L256		|
-	move.l %d1,%a5	| _410, tmp607
-	add.l #_pdata_table,%a5	|, tmp607
-.L263:
+	cmp.w %d0,%d3	| y, _856
+	jgt .L276		|
+	move.l %d1,%a5	| _371, tmp559
+	add.l #_pdata_table,%a5	|, tmp559
+.L283:
 | voxel.c:445: 					unsigned int movep_data = pdata_entry[y&7];
-	moveq #7,%d1	|, tmp510
-	and.l %d0,%d1	| y, tmp510
-	add.l %d1,%d1	| tmp510, tmp511
-	add.l %d1,%d1	| tmp511, tmp512
+	moveq #7,%d1	|, tmp471
+	and.l %d0,%d1	| y, tmp471
+	add.l %d1,%d1	| tmp471, tmp472
+	add.l %d1,%d1	| tmp472, tmp473
 | voxel.c:329: 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
-	move.l (%a5,%d1.l),%d1	| *_417, *_417
+	move.l (%a5,%d1.l),%d1	| *_378, *_378
 #APP
 | 329 "voxel.c" 1
-	movep.l %d1, 0(%a2)	| *_417, pBlock
+	movep.l %d1, 0(%a2)	| *_378, pBlock
 | 0 "" 2
 | voxel.c:447: 					pBlock -= 160*LINES_SKIP;
 #NO_APP
 	lea (-160,%a2),%a2	|, pBlock
 | voxel.c:448: 					y -= LINES_SKIP;
 	subq.w #1,%d0	|, y
-	move.w %d0,%a0	| y, prephitmp_898
+	move.w %d0,%a0	| y, prephitmp_837
 | voxel.c:444: 				while (y >= sample_y) {
-	cmp.w %d0,%d3	| y, _917
-	jle .L263		|
-.L256:
+	cmp.w %d0,%d3	| y, _856
+	jle .L283		|
+.L276:
 | voxel.c:455: 		z++;
 	addq.w #1,%d5	|, z
 | voxel.c:456: 		y_table_shifted++;
 	lea (1024,%a1),%a1	|, y_table_shifted
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d2	| delta_vu, tmp517
+	add.l %d4,%d2	| delta_vu, tmp478
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
 	and.l #-65538,%d2	|, sample_vu
 | voxel.c:459: 		if (TRIGGERS_PROGRESSION(z)) {
-	move.w %d5,%d1	| z, tmp518
-	and.w #15,%d1	|, tmp518
-	jne .L264		|
+	move.w %d5,%d1	| z, tmp479
+	and.w #15,%d1	|, tmp479
+	jne .L284		|
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
-	add.l %d4,%d4	| delta_vu, tmp519
+	add.l %d4,%d4	| delta_vu, tmp480
 | voxel.c:172: 	return (a + b) & 0xfffefffe;
 	and.l #-65538,%d4	|, delta_vu
 | voxel.c:466: 			index_mask = (index_mask << 1) & 0x7fbfd;
-	add.l %d6,%d6	| index_mask, tmp520
+	add.l %d6,%d6	| index_mask, tmp481
 | voxel.c:466: 			index_mask = (index_mask << 1) & 0x7fbfd;
 	and.l #523261,%d6	|, index_mask
-	jra .L264		|
-.L304:
+	jra .L284		|
+.L321:
 | voxel.c:425: 				if (sample_y < 0) sample_y = 0;
-	clr.w %d3	| _917
-	jra .L262		|
-.L269:
-| voxel.c:689: 		else pos.speed += drag;
-	add.w %d1,%d0	| _85, _88
-| voxel.c:684: 		pos.y += fixp_mul(pos.diry, pos.speed);
-	move.w %d5,_pos+2	| _72, pos.y
-| voxel.c:688: 		if (pos.speed > 0) pos.speed -= drag;
-	move.w %d0,_pos+10	| _88, pos.speed
-| voxel.c:690: 		fixp rot = (160 - mouse_x) >> 4;
-	moveq #95,%d4	|, tmp547
-	not.b %d4	| tmp547
-	sub.l 110(%sp),%d4	| %sfp, tmp547
-| voxel.c:690: 		fixp rot = (160 - mouse_x) >> 4;
-	asr.l #4,%d4	|, _94
+	clr.w %d3	| _856
+	jra .L282		|
+.L289:
+| voxel.c:736: 		else pos.speed += drag;
+	add.w %d1,%d0	| _75, _78
+| voxel.c:731: 		pos.y += fixp_mul(pos.diry, pos.speed);
+	move.w %d5,_pos+2	| _62, pos.y
+| voxel.c:735: 		if (pos.speed > 0) pos.speed -= drag;
+	move.w %d0,_pos+10	| _78, pos.speed
+| voxel.c:737: 		fixp rot = (160 - mouse_x) >> 4;
+	moveq #95,%d4	|, tmp508
+	not.b %d4	| tmp508
+	sub.l 110(%sp),%d4	| %sfp, tmp508
+| voxel.c:737: 		fixp rot = (160 - mouse_x) >> 4;
+	asr.l #4,%d4	|, _84
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %a0,-(%sp)	| _240,
-	move.l %d4,-(%sp)	| _94,
+	move.l %a0,-(%sp)	| _200,
+	move.l %d4,-(%sp)	| _84,
 	jsr ___mulsi3		|
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp550
-| voxel.c:691: 		pos.dirx += fixp_mul(rot, pos.diry);
-	add.w %d0,%d2	| tmp550, _98
+	asr.l #7,%d0	|, tmp511
+| voxel.c:738: 		pos.dirx += fixp_mul(rot, pos.diry);
+	add.w %d0,%d2	| tmp511, _88
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.l %d4,-(%sp)	| _94,
-	move.w %d2,%a1	| _98,
+	move.l %d4,-(%sp)	| _84,
+	move.w %d2,%a1	| _88,
 	move.l %a1,-(%sp)	|,
 	jsr ___mulsi3		|
 	addq.l #8,%sp	|,
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp554
-| voxel.c:692: 		pos.diry -= fixp_mul(rot, pos.dirx);
-	move.w %d3,%d1	| _67, _102
-	sub.w %d0,%d1	| tmp554, _102
+	asr.l #7,%d0	|, tmp515
+| voxel.c:739: 		pos.diry -= fixp_mul(rot, pos.dirx);
+	move.w %d3,%d1	| _57, _92
+	sub.w %d0,%d1	| tmp515, _92
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d2,%d0	| _98,
-	muls.w %d2,%d0	| _98, tmp555
+	move.w %d2,%d0	| _88,
+	muls.w %d2,%d0	| _88, tmp516
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp556
+	asr.l #7,%d0	|, tmp517
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d1,%d3	| _102,
-	muls.w %d1,%d3	| _102, tmp557
+	move.w %d1,%d3	| _92,
+	muls.w %d1,%d3	| _92, tmp518
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d3	|, tmp558
-| voxel.c:695: 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
-	add.w %d3,%d0	| tmp558, tmp559
+	asr.l #7,%d3	|, tmp519
+| voxel.c:742: 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
+	add.w %d3,%d0	| tmp519, tmp520
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w %d0,%a0	| tmp559, tmp560
-	moveq #-128,%d0	|, tmp561
-	add.l %a0,%d0	| tmp560, tmp561
+	move.w %d0,%a0	| tmp520, tmp521
+	moveq #-128,%d0	|, tmp522
+	add.l %a0,%d0	| tmp521, tmp522
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	asr.l #1,%d0	|, tmp562
+	asr.l #1,%d0	|, tmp523
 | voxel.c:164: 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-	move.w #128,%d3	|, _259
-	sub.w %d0,%d3	| tmp562, _259
+	move.w #128,%d3	|, _219
+	sub.w %d0,%d3	| tmp523, _219
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d3,%d0	| _259,
-	muls.w %d2,%d0	| _98, tmp563
+	move.w %d3,%d0	| _219,
+	muls.w %d2,%d0	| _88, tmp524
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d0	|, tmp564
+	asr.l #7,%d0	|, tmp525
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d0,76(%sp)	| tmp564, %sfp
+	move.w %d0,76(%sp)	| tmp525, %sfp
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	muls.w %d3,%d1	| _259, tmp565
+	muls.w %d3,%d1	| _219, tmp526
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	asr.l #7,%d1	|, tmp566
+	asr.l #7,%d1	|, tmp527
 | voxel.c:156: 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-	move.w %d1,74(%sp)	| tmp566, %sfp
-| voxel.c:696: 		pos.dirx = fixp_mul(factor, pos.dirx);
-	swap %d0	| _249
-	clr.w %d0	| _249
-	move.w %d1,%d0	| tmp566, _249
-	move.l %d0,_pos+6	| _249, MEM <vector(2) short int> [(short int *)&pos + 6B]
-| voxel.c:660: 	for(int i=0; i<FRAMES; i++) {
+	move.w %d1,74(%sp)	| tmp527, %sfp
+| voxel.c:743: 		pos.dirx = fixp_mul(factor, pos.dirx);
+	swap %d0	| _209
+	clr.w %d0	| _209
+	move.w %d1,%d0	| tmp527, _209
+	move.l %d0,_pos+6	| _209, MEM <vector(2) short int> [(short int *)&pos + 6B]
+| voxel.c:707: 	for(int i=0; i<FRAMES; i++) {
 	addq.l #1,102(%sp)	|, %sfp
-| voxel.c:660: 	for(int i=0; i<FRAMES; i++) {
+| voxel.c:707: 	for(int i=0; i<FRAMES; i++) {
 	cmp.l #800,102(%sp)	|, %sfp
-	jne .L271		|
-	jra .L305		|
+	jne .L291		|
+	jra .L322		|
 	.globl	_palette_vectors
 	.bss
 	.even

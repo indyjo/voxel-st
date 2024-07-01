@@ -1,4 +1,4 @@
-voxel.prg: voxel.o tga.o interrupt.o palette.o
+voxel.tos: voxel.o tga.o interrupt.o palette.o
 	$(CC) -o $@ $+
 
 voxel.s: voxel.c
@@ -7,5 +7,5 @@ voxel.s: voxel.c
 voxel.o: voxel.s
 
 clean:
-	rm -f *.s *.o *.prg
+	rm -f *.s *.o *.tos
 
