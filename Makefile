@@ -1,10 +1,12 @@
-voxel.tos: voxel.o tga.o interrupt.o palette.o
+assembly = voxel.o
+
+voxel.tos: voxel.o tga.o interrupt.o joystick.o palette.o
 	$(CC) -o $@ $+
 
-voxel.s: voxel.c
-	$(CC) $(CFLAGS) -c -S -fverbose-asm -o voxel.s voxel.c
+%.s: %.c
+	$(CC) $(CFLAGS) -c -S -fverbose-asm -o $@ $<
 
-voxel.o: voxel.s
+$(assembly): %.o: %.s
 
 clean:
 	rm -f *.s *.o *.tos

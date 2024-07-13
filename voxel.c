@@ -3,6 +3,7 @@
 #include <mint/sysvars.h>
 #include <stdio.h>
 #include "interrupt.h"
+#include "joystick.h"
 #include "palette.h"
 #include "tga.h"
 
@@ -33,7 +34,7 @@ typedef unsigned int fixp_2in1;
 #define LINES_SKIP 1
 
 // Whether to stop sampling occluded terrain
-#define OCCLUSION_CULLING
+//#define OCCLUSION_CULLING
 // Above which pixel height to start checking whether to apply occlusion culling.
 #define OCCLUSION_THRESHOLD_Y 100
 
@@ -489,7 +490,7 @@ short patch_sky(unsigned short *out, short x, short y) {
 position pos = {
 	.x = FIXP(145, 0),
 	.y = FIXP(340, 0),
-	.z = FIXP(100, 0),
+	.z = FIXP(40, 0),
 	.dirx = FIXP(-1, -49),
 	.diry = FIXP(-1, -118),
 	.speed = FIXP(1, 0),
@@ -697,23 +698,26 @@ int main(int argc, char **argv) {
 	}
 
 	compute_and_set_bottom_palette(0);
+	install_joystick_handler();
 	install_interrupts();
+
 	int cockpit_y = 120;
 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 
 	unsigned long t0 = *_hz_200;
-	int last_player_altitude = 40;
+	fixp desired_height = FIXP(20, 0);
 
 	for(int i=0; i<FRAMES; i++) {
 		unsigned short saved_color = get_color();
 		set_color(0x700);
 
-		int height_under_player = combined[fixp_int(pos.y)][fixp_int(pos.x)].height;
-		int player_altitude = height_under_player + 20;
-		if (player_altitude > 255) player_altitude = 255;
-		if (player_altitude > last_player_altitude + 2) player_altitude = last_player_altitude + 2;
-		if (player_altitude < last_player_altitude - 2) player_altitude = last_player_altitude - 2;
-		last_player_altitude = player_altitude;
+		fixp terrain_height = FIXP(combined[fixp_int(pos.y)][fixp_int(pos.x)].height, 0);
+		fixp player_height = pos.z - terrain_height;
+		fixp altitude_delta = (desired_height - player_height) / (desired_height >> 9);
+		if (altitude_delta > FIXP(2, 0)) altitude_delta = FIXP(2, 0);
+		if (altitude_delta < -FIXP(2, 0)) altitude_delta = -FIXP(2, 0);
+		pos.z += altitude_delta;
+		if (pos.z > FIXP(255, 0)) pos.z = FIXP(255, 0);
 
 		short mouse_x = GCURX, mouse_y = GCURY;
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
@@ -722,7 +726,7 @@ int main(int argc, char **argv) {
 #else
 			int y_offset = 0;
 #endif
-			short y = render(&pos, screen, player_altitude, x, y_offset, view_max[x >> 3], view_min[x >> 3]);
+			short y = render(&pos, screen, fixp_int(pos.z), x, y_offset, view_max[x >> 3], view_min[x >> 3]);
 			patch_sky(screen, x, y);
 		}
 		set_color(saved_color);
@@ -742,7 +746,26 @@ int main(int argc, char **argv) {
 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
 		pos.dirx = fixp_mul(factor, pos.dirx);
 		pos.diry = fixp_mul(factor, pos.diry);
+
+		if (pressed_keys.up) {
+			desired_height += FIXP(1, 0);
+			if (desired_height > FIXP(255, 0)) {
+				desired_height = FIXP(255, 0);
+			}
+		}
+		if (pressed_keys.down) {
+			desired_height -= FIXP(1, 0);
+			if (desired_height < FIXP(0, 0)) {
+				desired_height = FIXP(0, 0);
+			}
+		}
+		
 #endif
+
+		put_pixel(screen, pressed_keys.up ? 15 : 4, 2, 0);
+		put_pixel(screen, pressed_keys.down ? 15 : 4, 2, 4);
+		put_pixel(screen, pressed_keys.left ? 15 : 4, 0, 2);
+		put_pixel(screen, pressed_keys.right ? 15 : 4, 4, 2);
 		
 		//printf("len: %d, factor: %d\n", fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry), factor);
 		//Vsync();
@@ -752,6 +775,7 @@ int main(int argc, char **argv) {
 	unsigned long millis_per_frame = millis / FRAMES;
 	printf("Rendering took %dms per frame.\n", millis_per_frame);
 	uninstall_interrupts();
+	uninstall_joystick_handler();
 	
 error:
 	printf("Press any key to exit to TOS.\n");
