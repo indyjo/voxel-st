@@ -103,6 +103,9 @@ short view_min[40], view_max[40];
 // Utility functions for profiling by setting palette color 0
 volatile unsigned short *hw_palette = (unsigned short *) 0xff8240;
 
+// RGB of the color of the sky
+unsigned char sky_color[3];
+
 inline unsigned short get_color() {
 	return *hw_palette;
 }
@@ -241,7 +244,7 @@ void build_tables() {
 	fixp step = FIXP(1,0);
 	for (int z=1; z<STEPS_MAX; z++) {
 		for (int h=0; h<256+256; h++) {
-			y_table[z][h] = 60 - 70 * (h - 256) / fixp_int(dist);
+			y_table[z][h] = 45 - 70 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
 			y_table[z][h] += 70 * fixp_int(dist) / 400;
 #endif
@@ -550,7 +553,8 @@ void compute_and_set_bottom_palette(int frame) {
 	vec3_t view_z = { .c = { -pos.dirx, 0, -pos.diry }};
 	vec3_t view_y = { .c = { 0, FIXP(1, 0), 0 }};
 	vec3_t view_x = { .c = { view_z.c.z, 0, view_z.c.x }};
-	vec3_t blue = { 0, 0, FIXP(1, 0) };
+	vec3_t blue = { sky_color[0] >> 2, sky_color[1] >> 2, sky_color[2] >> 2 };
+	vec3_t sun_color = { FIXP(1,0) - blue.a[0], FIXP(1,0) - blue.a[1],  FIXP(1,0) - blue.a[2]};
 	vec3_t red = { FIXP(1,0), 0, 0 };
 	vec3_t green = { 0, FIXP(1,0), 0 };
 
@@ -568,7 +572,7 @@ void compute_and_set_bottom_palette(int frame) {
 			vec3_dot(view_z, normal_lcs)}};
 		fixp c_sun = vec3_dot(sun, normal_gcs);
 		if (c_sun < 0) c_sun = 0;
-		vec3_t sunlight = { c_sun, c_sun, c_sun };
+		vec3_t sunlight = vec3_scale(c_sun, sun_color);
 		accum = vec3_add(accum, sunlight);
 
 		vec3_t cabinlight = { 0, FIXP(0, 123), FIXP(0, 23) };
@@ -608,11 +612,15 @@ int load_voxel_data() {
 		perror("colors.tga");
 		goto error0;
 	}
-	image_t colors = read_tga_header(file1);
-	if (!colors.width) goto error1;
+	image_t texture = read_tga_header(file1);
+	if (!texture.width) goto error1;
 
-	set_top_palette(colors.colors);
-	set_palette_immediately(colors.colors);
+	sky_color[0] = texture.colors[15*3 + 2];
+	sky_color[1] = texture.colors[15*3 + 1];
+	sky_color[2] = texture.colors[15*3 + 0];
+
+	set_top_palette(texture.colors);
+	set_palette_immediately(texture.colors);
 
 	size_t n, remaining = 512*512;
 	unsigned char *p = &combined[0][0].color;
@@ -626,7 +634,7 @@ int load_voxel_data() {
 		}
 	}
 	printf("\n");
-	free_image(&colors);
+	free_image(&texture);
 
 	printf("Loading height.tga\n");
 	FILE *file2 = fopen("height.tga", "rb");
@@ -662,6 +670,18 @@ error0:
 	return 0;
 }
 
+unsigned char get_key() {
+	return Bconstat(_CON) ? (Bconin(_CON) & 0xff0000) >> 16 : 0;
+}
+
+void wait_for_key() {
+	while (Bconstat(_CON))
+		;
+	while (!Bconstat(_CON))
+		;
+	Bconin(_CON);
+}
+
 #define FRAMES 800
 
 int main(int argc, char **argv) {
@@ -678,6 +698,8 @@ int main(int argc, char **argv) {
 	unsigned short *screen = Physbase();
 	// Set cursor to home and stop blinking.
 	printf("\33H\33f\n\n");
+	// Disable key click
+	*conterm &= ~1;
 
 	if (!load_voxel_data()) {
 		printf("Failed to load voxel data.\n");
@@ -705,19 +727,31 @@ int main(int argc, char **argv) {
 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 
 	unsigned long t0 = *_hz_200;
+	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
 
+	int frames = 0;
+#ifdef INTERACTIVE
+	for(int i=0; ; i++) {
+		unsigned char key = get_key();
+		if (key == 1)
+			break;
+#else
 	for(int i=0; i<FRAMES; i++) {
+#endif
+		frames++;
 		unsigned short saved_color = get_color();
 		set_color(0x700);
 
 		fixp terrain_height = FIXP(combined[fixp_int(pos.y)][fixp_int(pos.x)].height, 0);
 		fixp player_height = pos.z - terrain_height;
-		fixp altitude_delta = (desired_height - player_height) / (desired_height >> 9);
-		if (altitude_delta > FIXP(2, 0)) altitude_delta = FIXP(2, 0);
-		if (altitude_delta < -FIXP(2, 0)) altitude_delta = -FIXP(2, 0);
-		pos.z += altitude_delta;
-		if (pos.z > FIXP(255, 0)) pos.z = FIXP(255, 0);
+		if (desired_height >= 0) {
+			fixp altitude_delta = (desired_height - player_height) / (desired_height >> 9);
+			if (altitude_delta > FIXP(2, 0)) altitude_delta = FIXP(2, 0);
+			if (altitude_delta < -FIXP(2, 0)) altitude_delta = -FIXP(2, 0);
+			pos.z += altitude_delta;
+			if (pos.z > FIXP(255, 0)) pos.z = FIXP(255, 0);
+		}
 
 		short mouse_x = GCURX, mouse_y = GCURY;
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
@@ -749,14 +783,22 @@ int main(int argc, char **argv) {
 
 		if (pressed_keys.up) {
 			desired_height += FIXP(1, 0);
-			if (desired_height > FIXP(255, 0)) {
-				desired_height = FIXP(255, 0);
+			if (desired_height > FIXP(254, 0)) {
+				desired_height = FIXP(254, 0);
 			}
 		}
 		if (pressed_keys.down) {
 			desired_height -= FIXP(1, 0);
 			if (desired_height < FIXP(0, 0)) {
 				desired_height = FIXP(0, 0);
+			}
+		}
+		if (key == 0x23) {
+			// H key => toggle auto-hover
+			if (desired_height < 0) {
+				desired_height = player_height;
+			} else {
+				desired_height = -1;
 			}
 		}
 		
@@ -766,20 +808,21 @@ int main(int argc, char **argv) {
 		put_pixel(screen, pressed_keys.down ? 15 : 4, 2, 4);
 		put_pixel(screen, pressed_keys.left ? 15 : 4, 0, 2);
 		put_pixel(screen, pressed_keys.right ? 15 : 4, 4, 2);
+		put_pixel(screen, desired_height >= 0 ? 15 : 4, 2, 2);
 		
 		//printf("len: %d, factor: %d\n", fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry), factor);
 		//Vsync();
 	}
 	unsigned long t1 = *_hz_200;
 	unsigned long millis = (t1 - t0) * 5;
-	unsigned long millis_per_frame = millis / FRAMES;
+	unsigned long millis_per_frame = millis / frames;
 	printf("Rendering took %dms per frame.\n", millis_per_frame);
 	uninstall_interrupts();
 	uninstall_joystick_handler();
 	
 error:
 	printf("Press any key to exit to TOS.\n");
-	getchar();
+	wait_for_key();
 	install_palette(saved_palette);
 	return 0;
 }
