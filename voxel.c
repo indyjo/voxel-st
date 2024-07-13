@@ -553,8 +553,9 @@ void compute_and_set_bottom_palette(int frame) {
 	vec3_t view_z = { .c = { -pos.dirx, 0, -pos.diry }};
 	vec3_t view_y = { .c = { 0, FIXP(1, 0), 0 }};
 	vec3_t view_x = { .c = { view_z.c.z, 0, view_z.c.x }};
-	vec3_t blue = { sky_color[0] >> 2, sky_color[1] >> 2, sky_color[2] >> 2 };
-	vec3_t sun_color = { FIXP(1,0) - blue.a[0], FIXP(1,0) - blue.a[1],  FIXP(1,0) - blue.a[2]};
+	vec3_t blue = { sky_color[0] >> 3, sky_color[1] >> 3, sky_color[2] >> 3 };
+	fixp full = FIXP(1,0) >> 1;
+	vec3_t sun_color = { full - blue.a[0], full - blue.a[1],  full - blue.a[2]};
 	vec3_t red = { FIXP(1,0), 0, 0 };
 	vec3_t green = { 0, FIXP(1,0), 0 };
 
@@ -772,9 +773,9 @@ int main(int argc, char **argv) {
 		fixp drag = (pos.speed >> (FIXP_PRECISION>>1)) * (pos.speed >> ((FIXP_PRECISION+1)>>1)) >> 4;
 		if (pos.speed > 0) pos.speed -= drag;
 		else pos.speed += drag;
-		fixp rot = (160 - mouse_x) >> 4;
-		pos.dirx += fixp_mul(rot, pos.diry);
-		pos.diry -= fixp_mul(rot, pos.dirx);
+		fixp rot = 160 - mouse_x;
+		pos.dirx += (rot * pos.diry) >> 11;
+		pos.diry -= (rot * pos.dirx) >> 11;
 		
 		// renormalize dirx, diry using a first-order approximation of the inverse square root, f(x) = 1/sqrt(x);
 		fixp factor = fixp_sqrt_inv(fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry));
@@ -782,12 +783,18 @@ int main(int argc, char **argv) {
 		pos.diry = fixp_mul(factor, pos.diry);
 
 		if (pressed_keys.up) {
+			if (desired_height < FIXP(0, 0)) {
+				desired_height = player_height;
+			}
 			desired_height += FIXP(1, 0);
 			if (desired_height > FIXP(254, 0)) {
 				desired_height = FIXP(254, 0);
 			}
 		}
 		if (pressed_keys.down) {
+			if (desired_height < FIXP(0, 0)) {
+				desired_height = player_height;
+			}
 			desired_height -= FIXP(1, 0);
 			if (desired_height < FIXP(0, 0)) {
 				desired_height = FIXP(0, 0);
