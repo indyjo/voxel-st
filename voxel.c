@@ -355,10 +355,18 @@ inline unsigned long to_offset(fixp_2in1 vu) {
 		"and.w %2, %1\n\t"
 		"lsr.w #6, %1\n\t"
 		"or.w %1,%0"
-	: "=d" (result), "=d" (tmp)
+	: "=&d" (result), "=&d" (tmp)
 	: "d" (vu)
 	: "cc");
 	return result;
+}
+
+// Returns a sample_t using the given VU position and index mask
+inline sample_t sample_terrain(fixp_2in1 sample_vu, unsigned int index_mask) {
+		unsigned int index = to_offset(sample_vu) & index_mask;
+		sample_t sample;
+		sample.both = ((volatile sample_t*)((char*)combined + index))->both;
+		return sample;
 }
 
 inline unsigned int get_pdata(sample_t sample, unsigned short opacity_preshifted, short y) {
@@ -374,14 +382,9 @@ inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshi
 // Render a column of pixels of a heightfield containing combined height and color values.
 // The viewer's position is assumed to be at `pos`.
 // Returns the first y position that wasn't filled.
-short render(const position *pos, unsigned short *out, short player_height, short x, short y_offset, short y_max, short y_min) {
+short render(fixp_2in1 sample_vu, fixp_2in1 delta_vu, unsigned short *out, short player_height, short x, short y_offset, short y_max, short y_min) {
 	set_color(0xff0);
 	short ytable_offset = 256 - player_height;
-
-	fixp_2in1 sample_vu = make_2in1(pos->y, pos->x);
-	fixp_2in1 delta_vu = make_2in1(
-		pos->diry + ((short)(x - 160) * pos->dirx >> 8),
-		pos->dirx - ((short)(x - 160) * pos->diry >> 8));
 
 	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
 	for (int i=0; i<STEPS_MIN; i++) {
@@ -413,9 +416,7 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 			goto done;
 		}
 #endif
-		unsigned int index = to_offset(sample_vu) & index_mask;
-		sample_t sample;
-		sample.both = ((sample_t*)((char*)combined + index))->both;
+		sample_t sample = sample_terrain(sample_vu, index_mask);
 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
 		if (sample_y <= y) {
 			// Found a sample to display. Depending on z, the sample is in the foggy region or not.
@@ -473,6 +474,48 @@ short render(const position *pos, unsigned short *out, short player_height, shor
 
 done:
 	return y + y_min;
+}
+
+// Finds the maximum elevation (in pixels) at which a ray will hit terrain.
+// sample_vu specifies the xy (uv) position from which to shoot the ray.
+// delta_vu is the direction (in terrain coordinates) into which the ray shoots.
+// start_height is the height (in terrain elevation units) from which the ray starts.
+// Returns the minimum y value encountered.
+short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height) {
+	short ytable_offset = 256 - start_height;
+	// Shift y_table by ytable_offset and z.
+	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
+
+	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
+	unsigned int index_mask = 0x7ffff;
+
+	short min_y = 0x7fff;
+	unsigned short z = 0;
+	while(z < STEPS_MAX) {
+		if (z >= STEPS_MIN) {
+			sample_t sample = sample_terrain(sample_vu, index_mask);
+			//short sample_y = y_table[z][sample.height + ytable_offset];
+			short sample_y = y_table_shifted[0][sample.height];
+			if (sample_y < min_y) {
+				min_y = sample_y;
+			}
+		}
+		z++;
+		y_table_shifted++;
+		sample_vu = add_2in1(sample_vu, delta_vu);
+#ifdef PROGRESSIVE_STEPSIZE
+		if (TRIGGERS_PROGRESSION(z)) {
+			delta_vu = add_2in1(delta_vu, delta_vu);
+		}
+#endif
+		if (TRIGGERS_MIPMAP(z)) {
+			// shift the index mask one position to the left and clear bits
+			// 2, and 11.
+			index_mask = (index_mask << 1) & 0x7fbfd;
+		}
+	}
+
+	return min_y;
 }
 
 void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
@@ -547,17 +590,16 @@ unsigned char fixp2color(fixp val) {
 		val >= FIXP(1,0) ? 255 : val << 1);
 }
 
-void compute_and_set_bottom_palette(int frame) {
+void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
 	vec3_t sun = { .c = { -FIXP(24, 0)/25, 0, FIXP(7, 0)/25 }};
 	
 	vec3_t view_z = { .c = { -pos.dirx, 0, -pos.diry }};
 	vec3_t view_y = { .c = { 0, FIXP(1, 0), 0 }};
 	vec3_t view_x = { .c = { view_z.c.z, 0, view_z.c.x }};
-	vec3_t blue = { sky_color[0] >> 3, sky_color[1] >> 3, sky_color[2] >> 3 };
-	fixp full = FIXP(1,0) >> 1;
+	vec3_t blue = { sky_color[0] >> 2, sky_color[1] >> 2, sky_color[2] >> 2 };
+	fixp full = FIXP(1,0);
 	vec3_t sun_color = { full - blue.a[0], full - blue.a[1],  full - blue.a[2]};
 	vec3_t red = { FIXP(1,0), 0, 0 };
-	vec3_t green = { 0, FIXP(1,0), 0 };
 
 	unsigned char dst[3*16];
 	unsigned char *p = dst;
@@ -572,28 +614,22 @@ void compute_and_set_bottom_palette(int frame) {
 			vec3_dot(view_y, normal_lcs),
 			vec3_dot(view_z, normal_lcs)}};
 		fixp c_sun = vec3_dot(sun, normal_gcs);
+		c_sun = fixp_mul(c_sun, sunlight_factor);
 		if (c_sun < 0) c_sun = 0;
+		// Add some scattered fraction of direct sunlight
+		c_sun += sunlight_factor >> 3;
 		vec3_t sunlight = vec3_scale(c_sun, sun_color);
 		accum = vec3_add(accum, sunlight);
 
-		vec3_t cabinlight = { 0, FIXP(0, 123), FIXP(0, 23) };
-		fixp c_cabinlight = vec3_dot(cabinlight, normal_lcs);
-		if (c_cabinlight < 0) c_cabinlight = 0;
-		accum = vec3_add(accum, vec3_scale(c_cabinlight, blue));
+		vec3_t sky = { 0, FIXP(1, 0), 0 };
+		fixp c_sky = vec3_dot(sky, normal_lcs);
+		if (c_sky < 0) c_sky = 0;
+		accum = vec3_add(accum, vec3_scale(c_sky, blue));
 
-		vec3_t left = { -FIXP(1,0), 0, 0 };
-		fixp c_left = vec3_dot(left, normal_lcs);
-		if (c_left < 0) c_left = 0;
-		if ((frame & 31) < 4) {
-			accum = vec3_add(accum, vec3_scale(c_left, red));
-		}
-		
-		vec3_t right = { FIXP(1,0), 0, 0 };
-		fixp c_right = vec3_dot(right, normal_lcs);
-		if (c_right < 0) c_right = 0;
-		if (((frame - 3) & 31) < 4) {
-			accum = vec3_add(accum, vec3_scale(c_right, green));
-		}
+		vec3_t cabinlight = { 0, -FIXP(1, 0), FIXP(1, 0) };
+		fixp c_cabinlight = vec3_dot(cabinlight, normal_lcs) >> 2;
+		if (c_cabinlight < 0) c_cabinlight = 0;
+		accum = vec3_add(accum, vec3_scale(c_cabinlight, red));
 
 		*p++ = fixp2color(accum.c.z);
 		*p++ = fixp2color(accum.c.y);
@@ -686,6 +722,9 @@ void wait_for_key() {
 #define FRAMES 800
 
 int main(int argc, char **argv) {
+	// Set cursor to home and stop blinking.
+	printf("\33H\33f\n\n");
+
 	// Enter supervisor mode so we can use HW registers
 	Super(0L);
 	// Initialize LINEA functions
@@ -697,8 +736,6 @@ int main(int argc, char **argv) {
 	save_palette(saved_palette);
 	
 	unsigned short *screen = Physbase();
-	// Set cursor to home and stop blinking.
-	printf("\33H\33f\n\n");
 	// Disable key click
 	*conterm &= ~1;
 
@@ -720,7 +757,7 @@ int main(int argc, char **argv) {
 		fill_column(screen, i*8, view_max[i]+1, 199 - view_max[i], 0);
 	}
 
-	compute_and_set_bottom_palette(0);
+	compute_and_set_bottom_palette(0, 0);
 	install_joystick_handler();
 	install_interrupts();
 
@@ -755,17 +792,34 @@ int main(int argc, char **argv) {
 		}
 
 		short mouse_x = GCURX, mouse_y = GCURY;
+		fixp_2in1 player_vu = make_2in1(pos.y, pos.x);
+
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
 #ifdef INTERACTIVE
 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
 #else
 			int y_offset = 0;
 #endif
-			short y = render(&pos, screen, fixp_int(pos.z), x, y_offset, view_max[x >> 3], view_min[x >> 3]);
+			fixp_2in1 delta_vu = make_2in1(
+				pos.diry + ((short)(x - 160) * pos.dirx >> 8),
+				pos.dirx - ((short)(x - 160) * pos.diry >> 8));
+			short y = render(player_vu, delta_vu, screen, fixp_int(pos.z), x, y_offset, view_max[x >> 3], view_min[x >> 3]);
 			patch_sky(screen, x, y);
 		}
 		set_color(saved_color);
-		compute_and_set_bottom_palette(i);
+		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
+		// the direct sunlight is obscured by terrain.
+		//short elev_to_sun = ray_elevation(pos.x, pos.y, -FIXP(1, 0), FIXP(0, 0), fixp_int(pos.z));
+		short elev_to_sun = ray_elevation(player_vu, make_2in1(0, -FIXP(1, 0)), fixp_int(pos.z));
+		fixp sunlight;
+		if (elev_to_sun < -40) {
+			sunlight = 0;
+		} else if (elev_to_sun >= -8) {
+			sunlight = FIXP(1, 0);
+		} else {
+			sunlight = (elev_to_sun + 40) << (FIXP_PRECISION - 5);
+		}
+		compute_and_set_bottom_palette(i, sunlight);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
 		pos.y += fixp_mul(pos.diry, pos.speed);
 #ifdef INTERACTIVE
