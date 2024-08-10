@@ -57,6 +57,8 @@ typedef unsigned int fixp_2in1;
 #define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
 #define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
 
+// Draw only every second column?
+#define INTERLACE_COLUMNS 1
 
 inline fixp progression(fixp x) {
 	return x + x;
@@ -364,9 +366,15 @@ inline unsigned long to_offset(fixp_2in1 vu) {
 // Returns a sample_t using the given VU position and index mask
 inline sample_t sample_terrain(fixp_2in1 sample_vu, unsigned int index_mask) {
 		unsigned int index = to_offset(sample_vu) & index_mask;
-		sample_t sample;
-		sample.both = ((volatile sample_t*)((char*)combined + index))->both;
+		sample_t sample = *(volatile sample_t*)((char*)combined + index);
 		return sample;
+}
+
+/// @brief Shift the index mask one position to the left and clear bits 2, and 11.
+/// @param index_mask The previous index mask
+/// @return The index mask corresponding to the next MIP level.
+inline unsigned int next_mip_level(unsigned int index_mask) {
+	return (index_mask << 1) & 0x7fbfd;
 }
 
 inline unsigned int get_pdata(sample_t sample, unsigned short opacity_preshifted, short y) {
@@ -379,55 +387,55 @@ inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshi
 	return (unsigned int *)((char*)pdata_table + offset);
 }
 
-// Render a column of pixels of a heightfield containing combined height and color values.
-// The viewer's position is assumed to be at `pos`.
-// Returns the first y position that wasn't filled.
-short render(fixp_2in1 sample_vu, fixp_2in1 delta_vu, unsigned short *out, short player_height, short x, short y_offset, short y_max, short y_min) {
-	set_color(0xff0);
+typedef struct {
+	/// @brief Position in the terrain to sample next
+	fixp_2in1 sample_vu;
+	/// @brief Pointer to the pixels to draw next
+	unsigned char *pixel;
+	/// @brief Y value of the pixels to draw next
+	short y;
+} render_state_t;
+
+/// @brief Render a column of pixels of a heightfield containing combined height and color values.
+/// @param state The sampler state to start with (including start position and next pixel y)
+/// @param z_begin The z index to start with (inclusive)
+/// @param z_end The z index to stop at (exclusive)
+/// @param delta_vu The delta to add to sample_vu per iteration
+/// @param player_height The height of the observer
+/// @param y_offset By how much to shift the column up or down
+/// @param y_min The y value to stop at (inclusive)
+/// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
+/// @param fog Whether to apply fog
+/// @return he render state with which to initialize the next render.
+render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_offset, short y_min, unsigned int index_mask, char fog) {
+	fixp_2in1 sample_vu = state.sample_vu;
 	short ytable_offset = 256 - player_height;
 
-	//printf("d_u: %x d_v: %x l2: %x\n", delta_u, delta_v, fixp_mul(delta_u, delta_u) + fixp_mul(delta_v, delta_v));
-	for (int i=0; i<STEPS_MIN; i++) {
-		sample_vu = add_2in1(sample_vu, delta_vu);
-	}
-
-	// Pointer to the first of the 8 bytes of memory which contain the pixel at line 199, column x
-	unsigned char * pBlock = pixel_block_address(out, x, y_max);
-
-	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
-	unsigned int index_mask = 0x7ffff;
+	unsigned char * pBlock = state.pixel;
 
 	// Offset the y coordinate system so that y_min is at 0, so that y_min is no longer needed in a register.
 	y_offset -= y_min;
-	// y coordinate of the pixel currently being filled in the column.
-	short y = y_max - y_min;
-	unsigned short z = STEPS_MIN;
+	// y coordinate of the pixel currently being filled in the column (adjusted by y_min)
+	short y = state.y - y_min;
 
 	// Shift y_table by ytable_offset and z.
-	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z] + ytable_offset);
+	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z_begin] + ytable_offset);
 
-	while(z < STEPS_MAX /*&& y >= y_min*/) {
-		set_color(0x00f);
+	// Shift opacity_table by z_begin.
+	unsigned char *opacity_table_shifted = opacity_table + z_begin;
 
-		//put_pixel(out, 15, get_2in1_lower(sample_vu) >> 9, get_2in1_upper(sample_vu) >> 9);
-		if (y < 0) goto done;
-#ifdef OCCLUSION_CULLING
-		if (y < OCCLUSION_THRESHOLD_Y && y <= y_table_shifted[0][max_height]) {
-			goto done;
-		}
-#endif
+	// Initialize z to a negative value and increment until 0.
+	for(short z = z_begin - z_end; z != 0 && y >= 0; z++) {
 		sample_t sample = sample_terrain(sample_vu, index_mask);
 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
 		if (sample_y <= y) {
-			// Found a sample to display. Depending on z, the sample is in the foggy region or not.
-			if (z < FOG_START) {
+			// Found a sample to display.
+			if (sample_y < 0) sample_y = 0;
+			if (!fog) {
 				// We found a terrain sample that covers the current y, and it is not foggy.
-				set_color(0xf30);
-
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
 				register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
-				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
@@ -435,17 +443,14 @@ short render(fixp_2in1 sample_vu, fixp_2in1 delta_vu, unsigned short *out, short
 				}
 			} else {
 				// We found a terrain sample that covers the current y, and it is in the foggy distance region.
-				set_color(0x0ff);
-
 				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 				// a stipple pattern for emulating fog.
 #if DISTANCE_FOG
-				unsigned char opacity_preshifted = opacity_table[z];
+				unsigned char opacity_preshifted = *opacity_table_shifted++;
 #else
 				unsigned char opacity_preshifted = MAX_OPACITY_PRESHIFTED;
 #endif
 				unsigned int* pdata_entry = pdata_offset(sample, opacity_preshifted);
-				if (sample_y < 0) sample_y = 0;
 				while (y >= sample_y) {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
@@ -456,25 +461,18 @@ short render(fixp_2in1 sample_vu, fixp_2in1 delta_vu, unsigned short *out, short
 		}
 
 		// Try the next sample.
-		set_color(0x33f);
-		z++;
 		y_table_shifted++;
 		sample_vu = add_2in1(sample_vu, delta_vu);
-#ifdef PROGRESSIVE_STEPSIZE
-		if (TRIGGERS_PROGRESSION(z)) {
-			delta_vu = add_2in1(delta_vu, delta_vu);
-		}
-#endif
-		if (TRIGGERS_MIPMAP(z)) {
-			// shift the index mask one position to the left and clear bits
-			// 2, and 11.
-			index_mask = (index_mask << 1) & 0x7fbfd;
-		}
 	}
 
-done:
-	return y + y_min;
+	render_state_t result = {
+		.sample_vu = sample_vu,
+		.pixel = pBlock,
+		.y = y + y_min,
+	};
+	return result;
 }
+
 
 // Finds the maximum elevation (in pixels) at which a ray will hit terrain.
 // sample_vu specifies the xy (uv) position from which to shoot the ray.
@@ -509,9 +507,7 @@ short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height)
 		}
 #endif
 		if (TRIGGERS_MIPMAP(z)) {
-			// shift the index mask one position to the left and clear bits
-			// 2, and 11.
-			index_mask = (index_mask << 1) & 0x7fbfd;
+			index_mask = next_mip_level(index_mask);
 		}
 	}
 
@@ -779,7 +775,7 @@ int main(int argc, char **argv) {
 #endif
 		frames++;
 		unsigned short saved_color = get_color();
-		set_color(0x700);
+		set_color(0x003);
 
 		fixp terrain_height = FIXP(combined[fixp_int(pos.y)][fixp_int(pos.x)].height, 0);
 		fixp player_height = pos.z - terrain_height;
@@ -794,7 +790,13 @@ int main(int argc, char **argv) {
 		short mouse_x = GCURX, mouse_y = GCURY;
 		fixp_2in1 player_vu = make_2in1(pos.y, pos.x);
 
+		set_color(0x030);
+#if INTERLACE_COLUMNS
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
+#else
+		for (unsigned short x = VIEWPORT_MIN + 3; x < VIEWPORT_MAX; x += 8) {
+#endif
+
 #ifdef INTERACTIVE
 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
 #else
@@ -803,10 +805,34 @@ int main(int argc, char **argv) {
 			fixp_2in1 delta_vu = make_2in1(
 				pos.diry + ((short)(x - 160) * pos.dirx >> 8),
 				pos.dirx - ((short)(x - 160) * pos.diry >> 8));
-			short y = render(player_vu, delta_vu, screen, fixp_int(pos.z), x, y_offset, view_max[x >> 3], view_min[x >> 3]);
-			patch_sky(screen, x, y);
+			
+			fixp_2in1 sample_vu = player_vu;
+			for (int i=0; i<STEPS_MIN; i++) {
+				sample_vu = add_2in1(sample_vu, delta_vu);
+			}
+			render_state_t state = {
+				.sample_vu = sample_vu,
+				.y = view_max[x >> 3],
+			};
+			state.pixel = pixel_block_address(screen, x, state.y);
+			unsigned int index_mask = 0x7ffff;
+			short y_min = view_min[x >> 3];
+			state = render(state, STEPS_MIN, 16, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			delta_vu = add_2in1(delta_vu, delta_vu);
+			state = render(state, 16, 24, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			index_mask = next_mip_level(index_mask);
+			state = render(state, 24, 32, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			delta_vu = add_2in1(delta_vu, delta_vu);
+			state = render(state, 32, FOG_START, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			index_mask = next_mip_level(index_mask);
+			state = render(state, FOG_START, 48, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			delta_vu = add_2in1(delta_vu, delta_vu);
+			state = render(state, 48, 56, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			index_mask = next_mip_level(index_mask);
+			state = render(state, 56, STEPS_MAX, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			patch_sky(screen, x, state.y);
 		}
-		set_color(saved_color);
+		set_color(0x700);
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
 		// the direct sunlight is obscured by terrain.
 		//short elev_to_sun = ray_elevation(pos.x, pos.y, -FIXP(1, 0), FIXP(0, 0), fixp_int(pos.z));
@@ -819,7 +845,9 @@ int main(int argc, char **argv) {
 		} else {
 			sunlight = (elev_to_sun + 40) << (FIXP_PRECISION - 5);
 		}
+		set_color(0x300);
 		compute_and_set_bottom_palette(i, sunlight);
+		set_color(0x007);
 		pos.x += fixp_mul(pos.dirx, pos.speed);
 		pos.y += fixp_mul(pos.diry, pos.speed);
 #ifdef INTERACTIVE
@@ -864,13 +892,14 @@ int main(int argc, char **argv) {
 		}
 		
 #endif
-
+		set_color(0x777);
 		put_pixel(screen, pressed_keys.up ? 15 : 4, 2, 0);
 		put_pixel(screen, pressed_keys.down ? 15 : 4, 2, 4);
 		put_pixel(screen, pressed_keys.left ? 15 : 4, 0, 2);
 		put_pixel(screen, pressed_keys.right ? 15 : 4, 4, 2);
 		put_pixel(screen, desired_height >= 0 ? 15 : 4, 2, 2);
 		
+		set_color(saved_color);
 		//printf("len: %d, factor: %d\n", fixp_mul(pos.dirx, pos.dirx) + fixp_mul(pos.diry, pos.diry), factor);
 		//Vsync();
 	}
