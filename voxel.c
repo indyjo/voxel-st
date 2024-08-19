@@ -17,7 +17,7 @@ typedef signed short fixp;
 typedef unsigned int fixp_2in1;
 
 // Should mouse control be active?
-#define INTERACTIVE
+//#define INTERACTIVE
 
 // If defined, background color is used to measure performance
 //#define COLORBAR_PROFILING
@@ -43,7 +43,7 @@ typedef unsigned int fixp_2in1;
 
 // First and last sample
 #define STEPS_MIN 4
-#define STEPS_MAX 64
+#define STEPS_MAX 128
 
 #define FOG_START (STEPS_MAX*5/8)
 
@@ -51,14 +51,14 @@ typedef unsigned int fixp_2in1;
 #define CURVED_TERRAIN
 
 // Uncomment to enable progressing step size
-#define PROGRESSIVE_STEPSIZE
+//#define PROGRESSIVE_STEPSIZE
 
 // Progression should happen every 2^N steps
 #define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
 #define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
 
 // Draw only every second column?
-#define INTERLACE_COLUMNS 1
+#define INTERLACE_COLUMNS 0
 
 inline fixp progression(fixp x) {
 	return x + x;
@@ -244,12 +244,14 @@ void build_tables() {
 	// A y table table that associates a heightfield sample h and a distance z with a screen y coordinate.
 	fixp dist = FIXP(1,0);
 	fixp step = FIXP(1,0);
+	int count = 0;
 	for (int z=1; z<STEPS_MAX; z++) {
 		for (int h=0; h<256+256; h++) {
 			y_table[z][h] = 45 - 70 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
 			y_table[z][h] += 70 * fixp_int(dist) / 400;
 #endif
+			if (z > 66 && y_table[z][h] < -200) count++;
 		}
 		dist += step;
 #ifdef PROGRESSIVE_STEPSIZE
@@ -261,6 +263,7 @@ void build_tables() {
 		int max_dist = STEPS_MAX - FOG_START;
 		opacity_table[z] = (256 * (max_dist - rel_dist - 1) / max_dist) & OPACITY_MASK;
 	}
+	printf("%d y-table entries counted.\n", count);
 
 	max_height = 0;
 	for (int y=0; y<HEIGHT; y++) {
@@ -335,6 +338,12 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
+inline unsigned int read_p(unsigned char *p) {
+	unsigned int result;
+	asm ("movep.l 0(%1), %0" : "=d" (result) : "a" (p));
+	return result;
+}
+
 // Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
 // the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
@@ -407,7 +416,7 @@ typedef struct {
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
 /// @return he render state with which to initialize the next render.
-render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_offset, short y_min, unsigned int index_mask, char fog) {
+render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_offset, short y_min, unsigned int index_mask, unsigned int pixel_mask, char fog) {
 	fixp_2in1 sample_vu = state.sample_vu;
 	short ytable_offset = 256 - player_height;
 
@@ -425,9 +434,14 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 	unsigned char *opacity_table_shifted = opacity_table + z_begin;
 
 	// Initialize z to a negative value and increment until 0.
-	for(short z = z_begin - z_end; z != 0 && y >= 0; z++) {
+	static short old_z = 42;
+	for(short z = z_begin - z_end; z < 0 && y >= 0; old_z = z + z_end, z++) {
 		sample_t sample = sample_terrain(sample_vu, index_mask);
 		short sample_y = y_table_shifted[0][sample.height] + y_offset;
+		// if (z + z_end == STEPS_MAX) {
+		// 	printf("y: %d c: %d z: %d<-%d %d..%d\n", sample_y, sample.color, z + z_end, old_z, z_begin, z_end);
+		// 	wait_for_key();
+		// }
 		if (sample_y <= y) {
 			// Found a sample to display.
 			if (sample_y < 0) sample_y = 0;
@@ -435,7 +449,8 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 				// We found a terrain sample that covers the current y, and it is not foggy.
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
-				register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
+				unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0) & pixel_mask;
+				movep_data |= read_p(pBlock) & ~pixel_mask;
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
@@ -452,7 +467,8 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 #endif
 				unsigned int* pdata_entry = pdata_offset(sample, opacity_preshifted);
 				while (y >= sample_y) {
-					unsigned int movep_data = pdata_entry[y&7];
+					unsigned int movep_data = pdata_entry[y&7] & pixel_mask;
+					movep_data |= read_p(pBlock) & ~pixel_mask;
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
 					y -= LINES_SKIP;
@@ -794,7 +810,7 @@ int main(int argc, char **argv) {
 #if INTERLACE_COLUMNS
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
 #else
-		for (unsigned short x = VIEWPORT_MIN + 3; x < VIEWPORT_MAX; x += 8) {
+		for (unsigned short x = VIEWPORT_MIN; x < VIEWPORT_MAX; x += 1) {
 #endif
 
 #ifdef INTERACTIVE
@@ -802,9 +818,10 @@ int main(int argc, char **argv) {
 #else
 			int y_offset = 0;
 #endif
-			fixp_2in1 delta_vu = make_2in1(
-				pos.diry + ((short)(x - 160) * pos.dirx >> 8),
-				pos.dirx - ((short)(x - 160) * pos.diry >> 8));
+			// deflection of the ray from main view axis, shifted 8 bits to the left
+			fixp dv8 = (short)(x - 160) * pos.dirx;
+			fixp du8 = -(short)(x - 160) * pos.diry;
+			fixp_2in1 delta_vu = make_2in1(pos.diry + (dv8 >> 8), pos.dirx + (du8 >> 8));
 			
 			fixp_2in1 sample_vu = player_vu;
 			for (int i=0; i<STEPS_MIN; i++) {
@@ -815,21 +832,10 @@ int main(int argc, char **argv) {
 				.y = view_max[x >> 3],
 			};
 			state.pixel = pixel_block_address(screen, x, state.y);
-			unsigned int index_mask = 0x7ffff;
+			unsigned int index_mask = 0x7ffff, pixel_mask = 0x80808080 >> (x & 7);
 			short y_min = view_min[x >> 3];
-			state = render(state, STEPS_MIN, 16, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 16, 24, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
-			index_mask = next_mip_level(index_mask);
-			state = render(state, 24, 32, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 32, FOG_START, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
-			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 48, 56, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
-			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			state = render(state, STEPS_MIN, FOG_START, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, pixel_mask, 0);
+			state = render(state, FOG_START, STEPS_MAX, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, pixel_mask, 1);
 			patch_sky(screen, x, state.y);
 		}
 		set_color(0x700);
