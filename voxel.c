@@ -402,37 +402,35 @@ typedef struct {
 /// @param z_end The z index to stop at (exclusive)
 /// @param delta_vu The delta to add to sample_vu per iteration
 /// @param player_height The height of the observer
-/// @param y_offset By how much to shift the column up or down
 /// @param y_min The y value to stop at (inclusive)
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
-/// @return he render state with which to initialize the next render.
-render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_offset, short y_min, unsigned int index_mask, char fog) {
+/// @return The render state with which to initialize the next render.
+render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_min, unsigned int index_mask, char fog) {
 	fixp_2in1 sample_vu = state.sample_vu;
-	short ytable_offset = 256 - player_height;
-
 	unsigned char * pBlock = state.pixel;
-
-	// Offset the y coordinate system so that y_min is at 0, so that y_min is no longer needed in a register.
-	y_offset -= y_min;
-	// y coordinate of the pixel currently being filled in the column (adjusted by y_min)
-	short y = state.y - y_min;
+	short y = state.y;
 
 	// Shift y_table by ytable_offset and z.
+	short ytable_offset = 256 - player_height;
 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z_begin] + ytable_offset);
 
 	// Shift opacity_table by z_begin.
 	unsigned char *opacity_table_shifted = opacity_table + z_begin;
 
 	// Initialize z to a negative value and increment until 0.
-	for(short z = z_begin - z_end; z != 0 && y >= 0; z++) {
+	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
 		sample_t sample = sample_terrain(sample_vu, index_mask);
-		short sample_y = y_table_shifted[0][sample.height] + y_offset;
+		short sample_y = y_table_shifted[0][sample.height];
 		if (sample_y <= y) {
 			// Found a sample to display.
-			if (sample_y < 0) sample_y = 0;
+			if (sample_y < y_min) {
+				// Make sure we don't paint over the top of the allowed area.
+				sample_y = y_min;
+				// For some reason it's faster to schedule the loop to end this way.
+				z = -1;
+			}
 			if (!fog) {
-				// We found a terrain sample that covers the current y, and it is not foggy.
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
 				register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
@@ -442,15 +440,9 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 					y -= LINES_SKIP;
 				}
 			} else {
-				// We found a terrain sample that covers the current y, and it is in the foggy distance region.
 				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 				// a stipple pattern for emulating fog.
-#if DISTANCE_FOG
-				unsigned char opacity_preshifted = *opacity_table_shifted++;
-#else
-				unsigned char opacity_preshifted = MAX_OPACITY_PRESHIFTED;
-#endif
-				unsigned int* pdata_entry = pdata_offset(sample, opacity_preshifted);
+				unsigned int* pdata_entry = pdata_offset(sample, *opacity_table_shifted);
 				while (y >= sample_y) {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
@@ -462,13 +454,14 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 
 		// Try the next sample.
 		y_table_shifted++;
+		opacity_table_shifted++;
 		sample_vu = add_2in1(sample_vu, delta_vu);
 	}
 
 	render_state_t result = {
 		.sample_vu = sample_vu,
 		.pixel = pBlock,
-		.y = y + y_min,
+		.y = y,
 	};
 	return result;
 }
@@ -812,24 +805,26 @@ int main(int argc, char **argv) {
 			}
 			render_state_t state = {
 				.sample_vu = sample_vu,
-				.y = view_max[x >> 3],
+				.y = view_max[x >> 3] - y_offset,
+				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
 			};
-			state.pixel = pixel_block_address(screen, x, state.y);
 			unsigned int index_mask = 0x7ffff;
-			short y_min = view_min[x >> 3];
-			state = render(state, STEPS_MIN, 16, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			short y_min = view_min[x >> 3] - y_offset;
+			short height = fixp_int(pos.z);
+			state = render(state, STEPS_MIN, 16, delta_vu, height, y_min, index_mask, 0);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 16, 24, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			state = render(state, 16, 24, delta_vu, height, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 24, 32, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			state = render(state, 24, 32, delta_vu, height, y_min, index_mask, 0);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 32, FOG_START, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 0);
+			state = render(state, 32, FOG_START, delta_vu, height, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			state = render(state, FOG_START, 48, delta_vu, height, y_min, index_mask, 1);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 48, 56, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			state = render(state, 48, 56, delta_vu, height, y_min, index_mask, 1);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_vu, fixp_int(pos.z), y_offset, y_min, index_mask, 1);
+			state = render(state, 56, STEPS_MAX, delta_vu, height, y_min, index_mask, 1);
+			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}
 		set_color(0x700);
