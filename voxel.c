@@ -7,6 +7,8 @@
 #include "palette.h"
 #include "tga.h"
 
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
 // This way, the integral part maps directly to a coordinate from the 512x512 heightfield.
 #define FIXP_PRECISION 7
@@ -56,9 +58,6 @@ typedef unsigned int fixp_2in1;
 // Progression should happen every 2^N steps
 #define TRIGGERS_PROGRESSION(z) (((z) & ((1<<4)-1)) == 0)
 #define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
-
-// Draw only every second column?
-#define INTERLACE_COLUMNS 1
 
 inline fixp progression(fixp x) {
 	return x + x;
@@ -335,6 +334,10 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
+inline void move_p2(unsigned char *p, unsigned int data) {
+	asm ("movep.l %0, 1(%1)" : : "d" (data), "a" (p));
+}
+
 // Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
 // the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
@@ -466,6 +469,41 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 	return result;
 }
 
+/// @brief Like render but for 16px-wide columns and without fog support.
+render_state_t render16(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_min, unsigned int index_mask) {
+	fixp_2in1 sample_vu = state.sample_vu;
+	unsigned char * pBlock = state.pixel;
+	short y = state.y;
+	short ytable_offset = 256 - player_height;
+	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z_begin] + ytable_offset);
+	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
+		sample_t sample = sample_terrain(sample_vu, index_mask);
+		short sample_y = y_table_shifted[0][sample.height];
+		if (sample_y <= y) {
+			if (sample_y < y_min) {
+				sample_y = y_min;
+				z = -1;
+			}
+			register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
+			while (y >= sample_y) {
+				move_p(pBlock, movep_data);
+				move_p2(pBlock, movep_data);
+				pBlock -= 160*LINES_SKIP;
+				y -= LINES_SKIP;
+			}
+		}
+
+		y_table_shifted++;
+		sample_vu = add_2in1(sample_vu, delta_vu);
+	}
+
+	render_state_t result = {
+		.sample_vu = sample_vu,
+		.pixel = pBlock,
+		.y = y,
+	};
+	return result;
+}
 
 // Finds the maximum elevation (in pixels) at which a ray will hit terrain.
 // sample_vu specifies the xy (uv) position from which to shoot the ray.
@@ -784,11 +822,10 @@ int main(int argc, char **argv) {
 		fixp_2in1 player_vu = make_2in1(pos.y, pos.x);
 
 		set_color(0x030);
-#if INTERLACE_COLUMNS
-		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-#else
-		for (unsigned short x = VIEWPORT_MIN + 3; x < VIEWPORT_MAX; x += 8) {
-#endif
+		// Change in sample_vu at z=64 per 8 pixels
+		fixp_2in1 sample_vu_8px_right = make_2in1(2 * pos.dirx, -2 * pos.diry);
+		fixp_2in1 delta_vu_8px_right = make_2in1(pos.dirx >> 3, (-pos.diry) >> 3);
+		for (unsigned short x = VIEWPORT_MIN; x < VIEWPORT_MAX; x += 16) {
 
 #ifdef INTERACTIVE
 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
@@ -796,8 +833,8 @@ int main(int argc, char **argv) {
 			int y_offset = 0;
 #endif
 			fixp_2in1 delta_vu = make_2in1(
-				pos.diry + ((short)(x - 160) * pos.dirx >> 8),
-				pos.dirx - ((short)(x - 160) * pos.diry >> 8));
+				pos.diry + ((short)(x + 8 - 160) * pos.dirx >> 8),
+				pos.dirx - ((short)(x + 8 - 160) * pos.diry >> 8));
 			
 			fixp_2in1 sample_vu = player_vu;
 			for (int i=0; i<STEPS_MIN; i++) {
@@ -809,23 +846,50 @@ int main(int argc, char **argv) {
 				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
 			};
 			unsigned int index_mask = 0x7ffff;
-			short y_min = view_min[x >> 3] - y_offset;
+			short y_min = MAX(view_min[x >> 3], view_min[(x+8) >> 3]) - y_offset;
 			short height = fixp_int(pos.z);
-			state = render(state, STEPS_MIN, 16, delta_vu, height, y_min, index_mask, 0);
+			state = render16(state, STEPS_MIN, 16, delta_vu, height, y_min, index_mask);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 16, 24, delta_vu, height, y_min, index_mask, 0);
+			state = render16(state, 16, 24, delta_vu, height, y_min, index_mask);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 24, 32, delta_vu, height, y_min, index_mask, 0);
+			state = render16(state, 24, 32, delta_vu, height, y_min, index_mask);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 32, FOG_START, delta_vu, height, y_min, index_mask, 0);
-			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_vu, height, y_min, index_mask, 1);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 48, 56, delta_vu, height, y_min, index_mask, 1);
-			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_vu, height, y_min, index_mask, 1);
-			state.y += y_offset;
-			patch_sky(screen, x, state.y);
+			state = render16(state, 32, 36, delta_vu, height, y_min, index_mask);
+
+			y_min = view_min[x >> 3] - y_offset;
+			render_state_t state8 = state;
+			//state8.sample_vu = add_2in1(state8.sample_vu, -delta_vu_delta_8px<<4);
+			fixp_2in1 delta_vu8 = delta_vu;
+			unsigned int index_mask8 = index_mask;
+			
+			// printf("a: %08x\n", state8.pixel);
+			state8 = render(state8, 36, FOG_START, delta_vu8, height, y_min, index_mask8, 0);
+			index_mask8 = next_mip_level(index_mask8);
+			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, 1);
+			delta_vu8 = add_2in1(delta_vu8, delta_vu8);
+			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, 1);
+			index_mask8 = next_mip_level(index_mask8);
+			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, 1);
+			state8.y += y_offset;
+			patch_sky(screen, x, state8.y);
+
+			y_min = view_min[(x + 8) >> 3] - y_offset;
+			state8 = state;
+			state8.sample_vu = add_2in1(state8.sample_vu, sample_vu_8px_right);
+			state8.pixel++;
+			delta_vu8 = add_2in1(delta_vu, delta_vu_8px_right);
+			index_mask8 = index_mask;
+
+			// printf("b: %08x\n", state8.pixel);
+			state8 = render(state8, 36, FOG_START, delta_vu8, height, y_min, index_mask8, 0);
+			index_mask8 = next_mip_level(index_mask8);
+			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, 1);
+			delta_vu8 = add_2in1(delta_vu8, delta_vu8);
+			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, 1);
+			index_mask8 = next_mip_level(index_mask8);
+			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, 1);
+			state8.y += y_offset;
+			patch_sky(screen, x+8, state8.y);
 		}
 		set_color(0x700);
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
