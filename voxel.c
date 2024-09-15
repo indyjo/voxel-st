@@ -38,8 +38,8 @@ typedef unsigned int fixp_2in1;
 // Above which pixel height to start checking whether to apply occlusion culling.
 #define OCCLUSION_THRESHOLD_Y 100
 
-// Whether to draw faraway samples with a stipple pattern
-#define DISTANCE_FOG 1
+// Whether to draw faraway samples with a stipple pattern by default (toggled with D key in interactive mode)
+#define FOG_ENABLED_INITIALLY 1
 
 // First and last sample
 #define STEPS_MIN 4
@@ -753,6 +753,8 @@ int main(int argc, char **argv) {
 	int cockpit_y = 120;
 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 
+	char fog_enabled = FOG_ENABLED_INITIALLY;
+
 	unsigned long t0 = *_hz_200;
 	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
@@ -819,11 +821,11 @@ int main(int argc, char **argv) {
 			delta_vu = add_2in1(delta_vu, delta_vu);
 			state = render(state, 32, FOG_START, delta_vu, height, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_vu, height, y_min, index_mask, 1);
+			state = render(state, FOG_START, 48, delta_vu, height, y_min, index_mask, fog_enabled);
 			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 48, 56, delta_vu, height, y_min, index_mask, 1);
+			state = render(state, 48, 56, delta_vu, height, y_min, index_mask, fog_enabled);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_vu, height, y_min, index_mask, 1);
+			state = render(state, 56, STEPS_MAX, delta_vu, height, y_min, index_mask, fog_enabled);
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}
@@ -884,6 +886,9 @@ int main(int argc, char **argv) {
 			} else {
 				desired_height = -1;
 			}
+		} else if (key == 0x20) {
+			// D key => toggle fog
+			fog_enabled = !fog_enabled;
 		}
 		
 #endif
