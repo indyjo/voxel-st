@@ -340,37 +340,25 @@ inline void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
-// Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
+// Given a pair of fixpoint coordinates u and v (as a combined value), returns a byte offset into
 // the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
 // This code leaves bits 19..31 uncleared, so another AND operation is needed (which happens anyway with index_mask)
-inline unsigned long to_offset(fixp_2in1 vu) {
-	unsigned long result;
-	// Initialize tmp with a bitmask that preserves the most-significant 9 bits of a word.
-	unsigned short tmp = 0xff80;
+inline unsigned long to_offset(fixp_2in1 uv) {
 	asm (
-		// We want the 'v' coordinate in bits 10..18.
-		// Instead of (slowly) shifting by 13 bits to the right, we swap and shift 3 bits to the left.
-		"move.l %[vu], %[result]\n\t"
-		"swap %[result]\n\t"
-		"and.w %[tmp], %[result]\n\t"
-		"lsl.l #3, %[result]\n\t"
-
-		// We want the 'u' coordinate in bits 1..9.
-		// Starting from bit 15, we need a shift of 6 bits to the right.
-		// We can use word-sized instructions for this.
-		"and.w %[vu], %[tmp]\n\t"
-		"lsr.w #6, %[tmp]\n\t"
-		"or.w %[tmp],%[result]"
-	: [result] "=&d" (result), [tmp] "+&d" (tmp)
-	: [vu] "d" (vu)
-	: "cc");
-	return result;
+		// Use a word-size operation to shift only the v coordinate to the right so that only 9 digits remain
+		"lsr.w #7, %[uv]\n\t"
+		// Swap words so that the v bits are in msb position
+		"swap %[uv]\n\t"
+		// Adjust to 19 bits (9 v-bits + 9 u-bits + 1 extra bit because word-sized entries in sample buffer)
+		"lsr.l #6, %[uv]"
+	: [uv] "+&d" (uv) : : "cc");
+	return uv;
 }
 
-// Returns a sample_t using the given VU position and index mask
-inline sample_t sample_terrain(fixp_2in1 sample_vu, unsigned int index_mask) {
-		unsigned int index = to_offset(sample_vu) & index_mask;
+// Returns a sample_t using the given UV position and index mask
+inline sample_t sample_terrain(fixp_2in1 sample_uv, unsigned int index_mask) {
+		unsigned int index = to_offset(sample_uv) & index_mask;
 		sample_t sample = *(volatile sample_t*)((char*)combined + index);
 		return sample;
 }
@@ -394,7 +382,7 @@ inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshi
 
 typedef struct {
 	/// @brief Position in the terrain to sample next
-	fixp_2in1 sample_vu;
+	fixp_2in1 sample_uv;
 	/// @brief Pointer to the pixels to draw next
 	unsigned char *pixel;
 	/// @brief Y value of the pixels to draw next
@@ -405,14 +393,14 @@ typedef struct {
 /// @param state The sampler state to start with (including start position and next pixel y)
 /// @param z_begin The z index to start with (inclusive)
 /// @param z_end The z index to stop at (exclusive)
-/// @param delta_vu The delta to add to sample_vu per iteration
+/// @param delta_uv The delta to add to sample_uv per iteration
 /// @param player_height The height of the observer
 /// @param y_min The y value to stop at (inclusive)
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
 /// @return The render state with which to initialize the next render.
-render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_vu, short player_height, short y_min, unsigned int index_mask, char fog) {
-	fixp_2in1 sample_vu = state.sample_vu;
+render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short player_height, short y_min, unsigned int index_mask, char fog) {
+	fixp_2in1 sample_uv = state.sample_uv;
 	unsigned char * pBlock = state.pixel;
 	short y = state.y;
 
@@ -425,7 +413,7 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 
 	// Initialize z to a negative value and increment until 0.
 	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
-		sample_t sample = sample_terrain(sample_vu, index_mask);
+		sample_t sample = sample_terrain(sample_uv, index_mask);
 		short sample_y = y_table_shifted[0][sample.height];
 		if (sample_y <= y) {
 			// Found a sample to display.
@@ -460,11 +448,11 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 		// Try the next sample.
 		y_table_shifted++;
 		opacity_table_shifted++;
-		sample_vu = add_2in1(sample_vu, delta_vu);
+		sample_uv = add_2in1(sample_uv, delta_uv);
 	}
 
 	render_state_t result = {
-		.sample_vu = sample_vu,
+		.sample_uv = sample_uv,
 		.pixel = pBlock,
 		.y = y,
 	};
@@ -473,11 +461,11 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 
 
 // Finds the maximum elevation (in pixels) at which a ray will hit terrain.
-// sample_vu specifies the xy (uv) position from which to shoot the ray.
-// delta_vu is the direction (in terrain coordinates) into which the ray shoots.
+// sample_uv specifies the xy (uv) position from which to shoot the ray.
+// delta_uv is the direction (in terrain coordinates) into which the ray shoots.
 // start_height is the height (in terrain elevation units) from which the ray starts.
 // Returns the minimum y value encountered.
-short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height) {
+short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height) {
 	short ytable_offset = 256 - start_height;
 	// Shift y_table by ytable_offset and z.
 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
@@ -489,7 +477,7 @@ short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height)
 	unsigned short z = 0;
 	while(z < STEPS_MAX) {
 		if (z >= STEPS_MIN) {
-			sample_t sample = sample_terrain(sample_vu, index_mask);
+			sample_t sample = sample_terrain(sample_uv, index_mask);
 			//short sample_y = y_table[z][sample.height + ytable_offset];
 			short sample_y = y_table_shifted[0][sample.height];
 			if (sample_y < min_y) {
@@ -498,10 +486,10 @@ short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height)
 		}
 		z++;
 		y_table_shifted++;
-		sample_vu = add_2in1(sample_vu, delta_vu);
+		sample_uv = add_2in1(sample_uv, delta_uv);
 #ifdef PROGRESSIVE_STEPSIZE
 		if (TRIGGERS_PROGRESSION(z)) {
-			delta_vu = add_2in1(delta_vu, delta_vu);
+			delta_uv = add_2in1(delta_uv, delta_uv);
 		}
 #endif
 		if (TRIGGERS_MIPMAP(z)) {
@@ -789,7 +777,7 @@ int main(int argc, char **argv) {
 		}
 
 		short mouse_x = GCURX, mouse_y = GCURY;
-		fixp_2in1 player_vu = make_2in1(pos.y, pos.x);
+		fixp_2in1 player_uv = make_2in1(pos.x, pos.y);
 
 		unsigned long t_render_0 = *_hz_200;
 		set_color(0x030);
@@ -805,16 +793,16 @@ int main(int argc, char **argv) {
 #else
 			int y_offset = 0;
 #endif
-			fixp_2in1 delta_vu = make_2in1(
-				pos.diry + ((short)(x - 160) * pos.dirx >> 8),
-				pos.dirx - ((short)(x - 160) * pos.diry >> 8));
+			fixp_2in1 delta_uv = make_2in1(
+				pos.dirx - ((short)(x - 160) * pos.diry >> 8),
+				pos.diry + ((short)(x - 160) * pos.dirx >> 8));
 			
-			fixp_2in1 sample_vu = player_vu;
+			fixp_2in1 sample_uv = player_uv;
 			for (int i=0; i<STEPS_MIN; i++) {
-				sample_vu = add_2in1(sample_vu, delta_vu);
+				sample_uv = add_2in1(sample_uv, delta_uv);
 			}
 			render_state_t state = {
-				.sample_vu = sample_vu,
+				.sample_uv = sample_uv,
 				.y = view_max[x >> 3] - y_offset,
 				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
 			};
@@ -822,19 +810,19 @@ int main(int argc, char **argv) {
 
 			short y_min = view_min[x >> 3] - y_offset;
 			short height = fixp_int(pos.z);
-			state = render(state, STEPS_MIN, 16, delta_vu, height, y_min, index_mask, 0);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 16, 24, delta_vu, height, y_min, index_mask, 0);
+			state = render(state, STEPS_MIN, 16, delta_uv, height, y_min, index_mask, 0);
+			delta_uv = add_2in1(delta_uv, delta_uv);
+			state = render(state, 16, 24, delta_uv, height, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 24, 32, delta_vu, height, y_min, index_mask, 0);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 32, FOG_START, delta_vu, height, y_min, index_mask, 0);
+			state = render(state, 24, 32, delta_uv, height, y_min, index_mask, 0);
+			delta_uv = add_2in1(delta_uv, delta_uv);
+			state = render(state, 32, FOG_START, delta_uv, height, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_vu, height, y_min, index_mask, fog_enabled);
-			delta_vu = add_2in1(delta_vu, delta_vu);
-			state = render(state, 48, 56, delta_vu, height, y_min, index_mask, fog_enabled);
+			state = render(state, FOG_START, 48, delta_uv, height, y_min, index_mask, fog_enabled);
+			delta_uv = add_2in1(delta_uv, delta_uv);
+			state = render(state, 48, 56, delta_uv, height, y_min, index_mask, fog_enabled);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_vu, height, y_min, index_mask, fog_enabled);
+			state = render(state, 56, STEPS_MAX, delta_uv, height, y_min, index_mask, fog_enabled);
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}
@@ -844,7 +832,7 @@ int main(int argc, char **argv) {
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
 		// the direct sunlight is obscured by terrain.
 		//short elev_to_sun = ray_elevation(pos.x, pos.y, -FIXP(1, 0), FIXP(0, 0), fixp_int(pos.z));
-		short elev_to_sun = ray_elevation(player_vu, make_2in1(0, -FIXP(1, 0)), fixp_int(pos.z));
+		short elev_to_sun = ray_elevation(player_uv, make_2in1(0, -FIXP(1, 0)), fixp_int(pos.z));
 		fixp sunlight;
 		if (elev_to_sun < -40) {
 			sunlight = 0;
