@@ -320,9 +320,14 @@ void build_tables() {
 	
 	for (int i=0; i<20; i++) {
 		view_min[i] = view_min[39-i] = top_envelope[i];
-	        view_max[i] = view_max[39-i] = 118 - bottom_envelope[i];	
+		view_max[i] = view_max[39-i] = 118 - bottom_envelope[i];
 	}
-	for (int x=0; x<320; x++) horizon[x] = view_min[x/8]-1;
+	// Snap to nearest multiple of LINES_SKIP.
+	for (int i=0; i<40; i++) {
+		view_min[i] -= view_min[i] % LINES_SKIP;
+		view_max[i] -= view_max[i] % LINES_SKIP;
+	}
+	for (int x=0; x<320; x++) horizon[x] = view_min[x/8] - LINES_SKIP;
 }
 
 // Pointer to the first of the 8 bytes of memory in pixel buffer out which contain the pixel at line y, column x
@@ -518,7 +523,7 @@ void fill_column(unsigned short *out, short x, short y, short height, unsigned c
 
 
 short patch_sky(unsigned short *out, short x, short y) {
-	fill_column(out, x, horizon[x]+1, y - horizon[x], 15);
+	fill_column(out, x, horizon[x] + LINES_SKIP, y - horizon[x], 15);
 	horizon[x] = y;
 }
 
@@ -756,6 +761,7 @@ int main(int argc, char **argv) {
 	char fog_enabled = FOG_ENABLED_INITIALLY;
 
 	unsigned long t0 = *_hz_200;
+	unsigned long t_render = 0;
 	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
 
@@ -785,6 +791,7 @@ int main(int argc, char **argv) {
 		short mouse_x = GCURX, mouse_y = GCURY;
 		fixp_2in1 player_vu = make_2in1(pos.y, pos.x);
 
+		unsigned long t_render_0 = *_hz_200;
 		set_color(0x030);
 #if INTERLACE_COLUMNS
 		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
@@ -794,6 +801,7 @@ int main(int argc, char **argv) {
 
 #ifdef INTERACTIVE
 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
+			y_offset -= y_offset % LINES_SKIP;
 #else
 			int y_offset = 0;
 #endif
@@ -830,6 +838,8 @@ int main(int argc, char **argv) {
 			patch_sky(screen, x, state.y);
 		}
 		set_color(0x700);
+		unsigned long t_render_1 = *_hz_200;
+		t_render += t_render_1 - t_render_0;
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
 		// the direct sunlight is obscured by terrain.
 		//short elev_to_sun = ray_elevation(pos.x, pos.y, -FIXP(1, 0), FIXP(0, 0), fixp_int(pos.z));
@@ -906,7 +916,8 @@ int main(int argc, char **argv) {
 	unsigned long t1 = *_hz_200;
 	unsigned long millis = (t1 - t0) * 5;
 	unsigned long millis_per_frame = millis / frames;
-	printf("Rendering took %dms per frame.\n", millis_per_frame);
+	printf("Total time per frame: %dms\n", millis_per_frame);
+	printf("Time spent rendering terrain: %dms\n", t_render * 5 / frames);
 	uninstall_interrupts();
 	uninstall_joystick_handler();
 	
