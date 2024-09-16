@@ -40,8 +40,8 @@ typedef unsigned int fixp_2in1;
 // Above which pixel height to start checking whether to apply occlusion culling.
 #define OCCLUSION_THRESHOLD_Y 100
 
-// Whether to draw faraway samples with a stipple pattern
-#define DISTANCE_FOG 1
+// Whether to draw faraway samples with a stipple pattern by default (toggled with D key in interactive mode)
+#define FOG_ENABLED_INITIALLY 1
 
 // First and last sample
 #define STEPS_MIN 4
@@ -791,6 +791,8 @@ int main(int argc, char **argv) {
 	int cockpit_y = 120;
 	draw_image2(screen + cockpit_y*80, cockpit.pixels, cockpit.width, 200 - cockpit_y, 0);
 
+	char fog_enabled = FOG_ENABLED_INITIALLY;
+
 	unsigned long t0 = *_hz_200;
 	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
@@ -865,11 +867,11 @@ int main(int argc, char **argv) {
 			// printf("a: %08x\n", state8.pixel);
 			state8 = render(state8, 36, FOG_START, delta_vu8, height, y_min, index_mask8, 0);
 			index_mask8 = next_mip_level(index_mask8);
-			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			delta_vu8 = add_2in1(delta_vu8, delta_vu8);
-			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			index_mask8 = next_mip_level(index_mask8);
-			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			state8.y += y_offset;
 			patch_sky(screen, x, state8.y);
 
@@ -883,11 +885,11 @@ int main(int argc, char **argv) {
 			// printf("b: %08x\n", state8.pixel);
 			state8 = render(state8, 36, FOG_START, delta_vu8, height, y_min, index_mask8, 0);
 			index_mask8 = next_mip_level(index_mask8);
-			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, FOG_START, 48, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			delta_vu8 = add_2in1(delta_vu8, delta_vu8);
-			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, 48, 56, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			index_mask8 = next_mip_level(index_mask8);
-			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, 1);
+			state8 = render(state8, 56, STEPS_MAX, delta_vu8, height, y_min, index_mask8, fog_enabled);
 			state8.y += y_offset;
 			patch_sky(screen, x+8, state8.y);
 		}
@@ -948,6 +950,9 @@ int main(int argc, char **argv) {
 			} else {
 				desired_height = -1;
 			}
+		} else if (key == 0x20) {
+			// D key => toggle fog
+			fog_enabled = !fog_enabled;
 		}
 		
 #endif
