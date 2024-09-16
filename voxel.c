@@ -343,27 +343,27 @@ inline void move_p(unsigned char *p, unsigned int data) {
 // Given a pair of fixpoint coordinates (as a combined value), returns a byte offset into
 // the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
+// This code leaves bits 19..31 uncleared, so another AND operation is needed (which happens anyway with index_mask)
 inline unsigned long to_offset(fixp_2in1 vu) {
-	unsigned long result, tmp;
+	unsigned long result;
+	// Initialize tmp with a bitmask that preserves the most-significant 9 bits of a word.
+	unsigned short tmp = 0xff80;
 	asm (
-		// Initialize tmp with a bitmask that preserves the most-significant 9 bits of the lo-word.
-		"moveq #0xffffff80, %1\n\t"
-
-		// We want the 'v' coordinate in bits 11..19.
+		// We want the 'v' coordinate in bits 10..18.
 		// Instead of (slowly) shifting by 13 bits to the right, we swap and shift 3 bits to the left.
-		"move.l %2, %0\n\t"
-		"swap %0\n\t"
-		"and.w %1, %0\n\t"
-		"lsl.l #3, %0\n\t"
+		"move.l %[vu], %[result]\n\t"
+		"swap %[result]\n\t"
+		"and.w %[tmp], %[result]\n\t"
+		"lsl.l #3, %[result]\n\t"
 
-		// We want the 'u' coordinate in bits 2..10.
-		// Starting from bit 16, we need a shift of 6 bits to the right.
+		// We want the 'u' coordinate in bits 1..9.
+		// Starting from bit 15, we need a shift of 6 bits to the right.
 		// We can use word-sized instructions for this.
-		"and.w %2, %1\n\t"
-		"lsr.w #6, %1\n\t"
-		"or.w %1,%0"
-	: "=&d" (result), "=&d" (tmp)
-	: "d" (vu)
+		"and.w %[vu], %[tmp]\n\t"
+		"lsr.w #6, %[tmp]\n\t"
+		"or.w %[tmp],%[result]"
+	: [result] "=&d" (result), [tmp] "+&d" (tmp)
+	: [vu] "d" (vu)
 	: "cc");
 	return result;
 }
@@ -483,7 +483,7 @@ short ray_elevation(fixp_2in1 sample_vu, fixp_2in1 delta_vu, short start_height)
 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
 
 	// ANDed with the UV position when sampling the terrain to avoid aliasing in the distance.
-	unsigned int index_mask = 0x7ffff;
+	unsigned int index_mask = 0x7fffe;
 
 	short min_y = 0x7fff;
 	unsigned short z = 0;
@@ -818,7 +818,8 @@ int main(int argc, char **argv) {
 				.y = view_max[x >> 3] - y_offset,
 				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
 			};
-			unsigned int index_mask = 0x7ffff;
+			unsigned int index_mask = 0x7fffe;
+
 			short y_min = view_min[x >> 3] - y_offset;
 			short height = fixp_int(pos.z);
 			state = render(state, STEPS_MIN, 16, delta_vu, height, y_min, index_mask, 0);
