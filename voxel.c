@@ -359,7 +359,7 @@ inline unsigned long to_offset(fixp_2in1 uv) {
 // Returns a sample_t using the given UV position and index mask
 inline sample_t sample_terrain(fixp_2in1 sample_uv, unsigned int index_mask) {
 		unsigned int index = to_offset(sample_uv) & index_mask;
-		sample_t sample = *(volatile sample_t*)((char*)combined + index);
+		sample_t sample = *(sample_t*)((char*)combined + index);
 		return sample;
 }
 
@@ -426,7 +426,7 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 			if (!fog) {
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
-				register unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
+				unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
