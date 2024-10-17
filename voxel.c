@@ -6,6 +6,7 @@
 #include "joystick.h"
 #include "palette.h"
 #include "tga.h"
+#include "particles.h"
 
 // The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
 // This way, the integral part maps directly to a coordinate from the 512x512 heightfield.
@@ -777,6 +778,8 @@ int main(int argc, char **argv) {
 		}
 
 		short mouse_x = GCURX, mouse_y = GCURY;
+		particles_clear_all(screen);
+		particles_draw_one(screen, mouse_x, mouse_y);
 		fixp_2in1 player_uv = make_2in1(pos.x, pos.y);
 
 		unsigned long t_render_0 = *_hz_200;
@@ -811,18 +814,26 @@ int main(int argc, char **argv) {
 			short y_min = view_min[x >> 3] - y_offset;
 			short height = fixp_int(pos.z);
 			state = render(state, STEPS_MIN, 16, delta_uv, height, y_min, index_mask, 0);
+#define PARTICLES			particles_draw_one(screen, ((short)(state.sample_uv >> 16) >> 10) + 160, ((short)(state.sample_uv & 0xffff) >> 10) + 160);
+			PARTICLES;
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 16, 24, delta_uv, height, y_min, index_mask, 0);
+			PARTICLES;
 			index_mask = next_mip_level(index_mask);
 			state = render(state, 24, 32, delta_uv, height, y_min, index_mask, 0);
+			PARTICLES;
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 32, FOG_START, delta_uv, height, y_min, index_mask, 0);
+			PARTICLES;
 			index_mask = next_mip_level(index_mask);
 			state = render(state, FOG_START, 48, delta_uv, height, y_min, index_mask, fog_enabled);
+			PARTICLES;
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 48, 56, delta_uv, height, y_min, index_mask, fog_enabled);
+			PARTICLES;
 			index_mask = next_mip_level(index_mask);
 			state = render(state, 56, STEPS_MAX, delta_uv, height, y_min, index_mask, fog_enabled);
+			PARTICLES;
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}

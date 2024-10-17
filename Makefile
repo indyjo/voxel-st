@@ -1,6 +1,6 @@
 assembly = voxel.o
 
-voxel.tos: voxel.o tga.o interrupt.o joystick.o palette.o
+voxel.tos: voxel.o tga.o interrupt.o joystick.o palette.o particles.o
 	$(CC) -o $@ $+
 
 %.s: %.c
