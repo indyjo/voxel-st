@@ -83,18 +83,16 @@ unsigned char max_height;
 // y_table[z][h] contains the y coordinate of a point at height h at a distance of z, observed from a height of 256.
 signed short y_table[STEPS_MAX][HEIGHT_VALUES];
 
-#define OPACITY_BITS 3
-#define OPACITY_STEPS (1<<OPACITY_BITS)
-#define OPACITY_MASK -(1<<(8-OPACITY_BITS))
-#define MAX_OPACITY (OPACITY_STEPS-1)
-#define MAX_OPACITY_PRESHIFTED (0xff & OPACITY_MASK)
+#define FOG_BITS 3
+#define FOG_STEPS (1<<FOG_BITS)
+#define FOG_MASK -(1<<(8-FOG_BITS))
 
-// pdata_table[color][opacity][y] contains pixel data prepared for movep.
-// 3 bit of opacity are encoded into a stipple pattern that mixes color 0 with the given color.
-unsigned int pdata_table[256][OPACITY_STEPS][8];
+// pdata_table[color][fog][y] contains pixel data prepared for movep.
+// 3 bit of fog are encoded into a stipple pattern that mixes color 15 with the given color.
+unsigned int pdata_table[256][FOG_STEPS][8];
 
-// An opacity value between 0 and 255 for each distance step, with lower bits 0.
-unsigned char opacity_table[STEPS_MAX];
+// Maps step index to (preshifted) fog.
+unsigned char fog_table[STEPS_MAX];
 
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
 signed short horizon[320];
@@ -259,7 +257,7 @@ void build_tables() {
 		int rel_dist = z - FOG_START;
 		if (rel_dist < 0) rel_dist = 0;
 		int max_dist = STEPS_MAX - FOG_START;
-		opacity_table[z] = (256 * (max_dist - rel_dist - 1) / max_dist) & OPACITY_MASK;
+		fog_table[z] = (255 * rel_dist / max_dist) & FOG_MASK;
 	}
 
 	max_height = 0;
@@ -281,12 +279,12 @@ void build_tables() {
 		{63,31,55,23,61,29,53,21}
 	};
 	for (int y = 0; y < 8; y++) {
-		for (int opacity = 0; opacity < OPACITY_STEPS; opacity++) {
+		for (int fog = 0; fog < FOG_STEPS; fog++) {
 			unsigned int odd = 0x55555555;
 			unsigned int evn = 0xaaaaaaaa;
 			unsigned char mask = 0;
 			for (int x=0; x<8; x++) {
-				if (bayer[y][x] < (opacity+1) * (64/OPACITY_STEPS)) mask |= 1 << x;
+				if (bayer[y][x] >= fog * (64/FOG_STEPS)) mask |= 1 << x;
 			}
 			for (int color1 = 0; color1 < 16; color1++) {
 				for (int color2 = 0; color2 <= color1; color2++) {
@@ -296,7 +294,7 @@ void build_tables() {
 						| pdata_pattern(15, ~mask);
 					int index1 = ((color2 - color1) & 15) * 16 + color1;
 					int index2 = ((color1 - color2) & 15) * 16 + color2;
-					pdata_table[index2][opacity][y] = pdata_table[index1][opacity][y] = pdata;
+					pdata_table[index2][fog][y] = pdata_table[index1][fog][y] = pdata;
 				}
 
 			}
@@ -399,7 +397,7 @@ typedef struct {
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
 /// @return The render state with which to initialize the next render.
-render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short player_height, short y_min, unsigned int index_mask, char fog) {
+inline render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short player_height, short y_min, unsigned int index_mask, char fog) {
 	fixp_2in1 sample_uv = state.sample_uv;
 	unsigned char * pBlock = state.pixel;
 	short y = state.y;
@@ -408,8 +406,8 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 	short ytable_offset = 256 - player_height;
 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z_begin] + ytable_offset);
 
-	// Shift opacity_table by z_begin.
-	unsigned char *opacity_table_shifted = opacity_table + z_begin;
+	// Shift fog_table by z_begin.
+	unsigned char *fog_table_shifted = fog_table + z_begin;
 
 	// Initialize z to a negative value and increment until 0.
 	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
@@ -426,7 +424,7 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 			if (!fog) {
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
-				unsigned int movep_data = get_pdata(sample, MAX_OPACITY_PRESHIFTED, 0);
+				unsigned int movep_data = get_pdata(sample, 0, 0);
 				while (y >= sample_y) {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
@@ -435,7 +433,7 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 			} else {
 				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 				// a stipple pattern for emulating fog.
-				unsigned int* pdata_entry = pdata_offset(sample, *opacity_table_shifted);
+				unsigned int* pdata_entry = pdata_offset(sample, *fog_table_shifted);
 				while (y >= sample_y) {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
@@ -447,7 +445,7 @@ render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in
 
 		// Try the next sample.
 		y_table_shifted++;
-		opacity_table_shifted++;
+		fog_table_shifted++;
 		sample_uv = add_2in1(sample_uv, delta_uv);
 	}
 
@@ -502,7 +500,7 @@ short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height)
 
 void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
 	unsigned char * pBlock = pixel_block_address(out, x, y);
-	unsigned int movep_data = pdata_table[color][MAX_OPACITY][0];
+	unsigned int movep_data = pdata_table[color][0][0];
 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
 		move_p(pBlock, movep_data);
 		pBlock += 160*LINES_SKIP;
