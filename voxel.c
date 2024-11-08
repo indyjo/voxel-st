@@ -64,6 +64,9 @@ inline fixp progression(fixp x) {
 	return x + x;
 }
 
+// Each sample consists of color and height.
+// Actually, the height component stores 2*height because it will be used to index into
+// an array of shorts and this way no shift operation is necessary.
 typedef union {
 	unsigned short both;
 	struct {
@@ -267,6 +270,8 @@ void build_tables() {
 				max_height = combined[y][x].height;
 		}
 	}
+	// Divide by two since combined[y][x].height actually stores 2*height.
+	max_height >>= 1;
 	
 	int bayer[8][8] = {
 		{0, 32, 8,40, 2,34,10,42},
@@ -412,7 +417,7 @@ inline render_state_t render(render_state_t state, short z_begin, short z_end, f
 	// Initialize z to a negative value and increment until 0.
 	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
 		sample_t sample = sample_terrain(sample_uv, index_mask);
-		short sample_y = y_table_shifted[0][sample.height];
+		short sample_y = *(short*)(((char*)y_table_shifted[0]) + sample.height);
 		if (sample_y <= y) {
 			// Found a sample to display.
 			if (sample_y < y_min) {
@@ -668,7 +673,9 @@ int load_voxel_data() {
 		printf(".");
 		fflush(stdout);
 		for (size_t i=0; i<n; i++) {
-			*p = buf[i];
+			// Don't actually store height, store 2*height because we'll be using that as an index into
+			// an array of shorts.
+			*p = buf[i]*2;
 			p += 2;
 		}
 	}
