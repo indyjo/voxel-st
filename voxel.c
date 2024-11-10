@@ -423,28 +423,26 @@ inline render_state_t render(render_state_t state, short z_begin, short z_end, f
 			if (sample_y < y_min) {
 				// Make sure we don't paint over the top of the allowed area.
 				sample_y = y_min;
-				// For some reason it's faster to schedule the loop to end this way.
-				z = -1;
 			}
 			if (!fog) {
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
 				// pixel data once from the table.
 				unsigned int movep_data = get_pdata(sample, 0, 0);
-				while (y >= sample_y) {
+				do {
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
 					y -= LINES_SKIP;
-				}
+				} while (sample_y <= y);
 			} else {
 				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
 				// a stipple pattern for emulating fog.
 				unsigned int* pdata_entry = pdata_offset(sample, *fog_table_shifted);
-				while (y >= sample_y) {
+				do {
 					unsigned int movep_data = pdata_entry[y&7];
 					move_p(pBlock, movep_data);
 					pBlock -= 160*LINES_SKIP;
 					y -= LINES_SKIP;
-				}
+				} while (sample_y <= y);
 			}
 		}
 
@@ -771,7 +769,7 @@ int main(int argc, char **argv) {
 		unsigned short saved_color = get_color();
 		set_color(0x003);
 
-		fixp terrain_height = FIXP(combined[fixp_int(pos.y)][fixp_int(pos.x)].height, 0);
+		fixp terrain_height = FIXP(combined[fixp_int(pos.y)][fixp_int(pos.x)].height >> 1, 0);
 		fixp player_height = pos.z - terrain_height;
 		if (desired_height >= 0) {
 			fixp altitude_delta = (desired_height - player_height) / (desired_height >> 9);
@@ -815,6 +813,8 @@ int main(int argc, char **argv) {
 
 			short y_min = view_min[x >> 3] - y_offset;
 			short height = fixp_int(pos.z);
+			asm (".globl  _begin_render_column");
+			asm ("_begin_render_column:");
 			state = render(state, STEPS_MIN, 16, delta_uv, height, y_min, index_mask, 0);
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 16, 24, delta_uv, height, y_min, index_mask, 0);
@@ -830,6 +830,8 @@ int main(int argc, char **argv) {
 			state = render(state, 56, STEPS_MAX, delta_uv, height, y_min, index_mask, fog_enabled);
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
+			asm (".globl  _end_render_column");
+			asm ("_end_render_column:");
 		}
 		set_color(0x700);
 		unsigned long t_render_1 = *_hz_200;
