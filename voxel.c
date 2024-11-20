@@ -479,8 +479,7 @@ short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height)
 	while(z < STEPS_MAX) {
 		if (z >= STEPS_MIN) {
 			sample_t sample = sample_terrain(sample_uv, index_mask);
-			//short sample_y = y_table[z][sample.height + ytable_offset];
-			short sample_y = y_table_shifted[0][sample.height];
+			short sample_y = *(short*)(((char*)y_table_shifted[0]) + sample.height);
 			if (sample_y < min_y) {
 				min_y = sample_y;
 			}
