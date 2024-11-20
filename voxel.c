@@ -414,15 +414,20 @@ inline render_state_t render(render_state_t state, short z_begin, short z_end, f
 	// Shift fog_table by z_begin.
 	unsigned char *fog_table_shifted = fog_table + z_begin;
 
+	// Skip the loop if the column is already filled.
+	if (y < y_min) goto finish;
+
 	// Initialize z to a negative value and increment until 0.
-	for(short z = z_begin - z_end; z < 0 && y >= y_min; z++) {
+	for(short z = z_begin - z_end; z < 0; z++) {
 		sample_t sample = sample_terrain(sample_uv, index_mask);
 		short sample_y = *(short*)(((char*)y_table_shifted[0]) + sample.height);
 		if (sample_y <= y) {
 			// Found a sample to display.
-			if (sample_y < y_min) {
+			if (sample_y <= y_min) {
 				// Make sure we don't paint over the top of the allowed area.
 				sample_y = y_min;
+				// Exit the loop on next iteration.
+				z = 0;
 			}
 			if (!fog) {
 				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
@@ -451,7 +456,7 @@ inline render_state_t render(render_state_t state, short z_begin, short z_end, f
 		fog_table_shifted++;
 		sample_uv = add_2in1(sample_uv, delta_uv);
 	}
-
+finish:
 	render_state_t result = {
 		.sample_uv = sample_uv,
 		.pixel = pBlock,
@@ -812,8 +817,6 @@ int main(int argc, char **argv) {
 
 			short y_min = view_min[x >> 3] - y_offset;
 			short height = fixp_int(pos.z);
-			asm (".globl  _begin_render_column");
-			asm ("_begin_render_column:");
 			state = render(state, STEPS_MIN, 16, delta_uv, height, y_min, index_mask, 0);
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 16, 24, delta_uv, height, y_min, index_mask, 0);
@@ -829,8 +832,6 @@ int main(int argc, char **argv) {
 			state = render(state, 56, STEPS_MAX, delta_uv, height, y_min, index_mask, fog_enabled);
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
-			asm (".globl  _end_render_column");
-			asm ("_end_render_column:");
 		}
 		set_color(0x700);
 		unsigned long t_render_1 = *_hz_200;
