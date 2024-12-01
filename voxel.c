@@ -384,6 +384,10 @@ inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshi
 }
 
 typedef struct {
+	/// @brief Pointer to y values corresponding to heights wrt observer height and current z.
+	short (*y_table_shifted)[HEIGHT_VALUES];
+	/// @brief Pointer to pre-shifted fog value corresponding to current z.
+	unsigned char *fog_table_shifted;
 	/// @brief Position in the terrain to sample next
 	fixp_2in1 sample_uv;
 	/// @brief Pointer to the pixels to draw next
@@ -397,25 +401,22 @@ typedef struct {
 /// @param z_begin The z index to start with (inclusive)
 /// @param z_end The z index to stop at (exclusive)
 /// @param delta_uv The delta to add to sample_uv per iteration
-/// @param player_height The height of the observer
 /// @param y_min The y value to stop at (inclusive)
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
 /// @return The render state with which to initialize the next render.
-inline render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short player_height, short y_min, unsigned int index_mask, char fog) {
+inline render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short y_min, unsigned int index_mask, char fog) {
 	fixp_2in1 sample_uv = state.sample_uv;
 	unsigned char * pBlock = state.pixel;
 	short y = state.y;
-
-	// Shift y_table by ytable_offset and z.
-	short ytable_offset = 256 - player_height;
-	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[z_begin] + ytable_offset);
-
-	// Shift fog_table by z_begin.
-	unsigned char *fog_table_shifted = fog_table + z_begin;
+	short (*y_table_shifted)[HEIGHT_VALUES] = state.y_table_shifted;
+	unsigned char *fog_table_shifted = state.fog_table_shifted;
 
 	// Skip the loop if the column is already filled.
 	if (y < y_min) goto finish;
+
+	// Advance the fog_table once by the proper amount if fog is disabled for this z interval.
+	if (!fog) fog_table_shifted += z_end - z_begin;
 
 	// Initialize z to a negative value and increment until 0.
 	for(short z = z_begin - z_end; z < 0; z++) {
@@ -453,11 +454,13 @@ inline render_state_t render(render_state_t state, short z_begin, short z_end, f
 
 		// Try the next sample.
 		y_table_shifted++;
-		fog_table_shifted++;
+		if (fog) fog_table_shifted++;
 		sample_uv = add_2in1(sample_uv, delta_uv);
 	}
 finish:
 	render_state_t result = {
+		.y_table_shifted = y_table_shifted,
+		.fog_table_shifted = fog_table_shifted,
 		.sample_uv = sample_uv,
 		.pixel = pBlock,
 		.y = y,
@@ -808,7 +811,10 @@ int main(int argc, char **argv) {
 			for (int i=0; i<STEPS_MIN; i++) {
 				sample_uv = add_2in1(sample_uv, delta_uv);
 			}
+			short height = fixp_int(pos.z);
 			render_state_t state = {
+				.y_table_shifted = (short (*)[HEIGHT_VALUES])(y_table[STEPS_MIN] + 256 - height),
+				.fog_table_shifted = fog_table + STEPS_MIN,
 				.sample_uv = sample_uv,
 				.y = view_max[x >> 3] - y_offset,
 				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
@@ -816,20 +822,19 @@ int main(int argc, char **argv) {
 			unsigned int index_mask = 0x7fffe;
 
 			short y_min = view_min[x >> 3] - y_offset;
-			short height = fixp_int(pos.z);
-			state = render(state, STEPS_MIN, 16, delta_uv, height, y_min, index_mask, 0);
+			state = render(state, STEPS_MIN, 16, delta_uv, y_min, index_mask, 0);
 			delta_uv = add_2in1(delta_uv, delta_uv);
-			state = render(state, 16, 24, delta_uv, height, y_min, index_mask, 0);
+			state = render(state, 16, 24, delta_uv, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 24, 32, delta_uv, height, y_min, index_mask, 0);
+			state = render(state, 24, 32, delta_uv, y_min, index_mask, 0);
 			delta_uv = add_2in1(delta_uv, delta_uv);
-			state = render(state, 32, FOG_START, delta_uv, height, y_min, index_mask, 0);
+			state = render(state, 32, FOG_START, delta_uv, y_min, index_mask, 0);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, FOG_START, 48, delta_uv, height, y_min, index_mask, fog_enabled);
+			state = render(state, FOG_START, 48, delta_uv, y_min, index_mask, fog_enabled);
 			delta_uv = add_2in1(delta_uv, delta_uv);
-			state = render(state, 48, 56, delta_uv, height, y_min, index_mask, fog_enabled);
+			state = render(state, 48, 56, delta_uv, y_min, index_mask, fog_enabled);
 			index_mask = next_mip_level(index_mask);
-			state = render(state, 56, STEPS_MAX, delta_uv, height, y_min, index_mask, fog_enabled);
+			state = render(state, 56, STEPS_MAX, delta_uv, y_min, index_mask, fog_enabled);
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}
