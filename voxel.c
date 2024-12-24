@@ -822,6 +822,7 @@ int main(int argc, char **argv) {
 			unsigned int index_mask = 0x7fffe;
 
 			short y_min = view_min[x >> 3] - y_offset;
+#ifdef PROGRESSIVE_STEPSIZE
 			state = render(state, STEPS_MIN, 16, delta_uv, y_min, index_mask, 0);
 			delta_uv = add_2in1(delta_uv, delta_uv);
 			state = render(state, 16, 24, delta_uv, y_min, index_mask, 0);
@@ -835,6 +836,10 @@ int main(int argc, char **argv) {
 			state = render(state, 48, 56, delta_uv, y_min, index_mask, fog_enabled);
 			index_mask = next_mip_level(index_mask);
 			state = render(state, 56, STEPS_MAX, delta_uv, y_min, index_mask, fog_enabled);
+#else
+			state = render(state, STEPS_MIN, FOG_START, delta_uv, y_min, index_mask, 0);
+			state = render(state, FOG_START, STEPS_MAX, delta_uv, y_min, index_mask, fog_enabled);
+#endif
 			state.y += y_offset;
 			patch_sky(screen, x, state.y);
 		}
