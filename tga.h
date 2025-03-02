@@ -11,7 +11,7 @@ typedef struct {
 
 image_t read_tga(const char *filename);
 void free_image(image_t *image);
-image_t read_tga_header(FILE *file);
+image_t read_tga_header(long file);
 
 #endif
 

@@ -1,10 +1,6 @@
 #include <mint/linea.h>
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "interrupt.h"
 #include "joystick.h"
 #include "palette.h"
@@ -65,14 +61,32 @@ typedef unsigned int fixp_2in1;
 
 #define USE_LIBCMINI 1
 
+static void print(const char *s) {
+	while (*s) {
+		Bconout(_CON, *s);
+		s++;
+	}
+}
+
+static void printnum(long n) {
+	char neg = n < 0;
+	if (neg) n = -n;
+	char buf[16];
+	char *p=buf+15;
+	*p=0;
+	while (n > 0) {
+		*(--p)='0' + (n % 10);
+		n /= 10;
+	}
+	if (neg) *(--p)='-';
+	print(p);
+}
+
+
 #if USE_LIBCMINI
 __LINEA *__aline;
 __FONT  **__fonts;
 short  (**__funcs) (void);
-
-void perror(const char *msg) {
-	printf("%s: %s\r\n", strerror(errno), msg);
-}
 
 #define LINEA_OPCODE_BASE 0xa000
 #define ASM_LINEA3(opcode) ".word	" #opcode
@@ -109,7 +123,7 @@ void lineaa(void)
 
 #endif // USE_LIBCMINI
 
-inline fixp progression(fixp x) {
+static fixp progression(fixp x) {
 	return x + x;
 }
 
@@ -158,17 +172,17 @@ volatile unsigned short *hw_palette = (unsigned short *) 0xff8240;
 // RGB of the color of the sky
 unsigned char sky_color[3];
 
-inline unsigned short get_color() {
+static unsigned short get_color() {
 	return *hw_palette;
 }
 
-inline void set_color(unsigned short rgb) {
+static void set_color(unsigned short rgb) {
 #ifdef COLORBAR_PROFILING
 	*hw_palette = rgb;
 #endif
 } 
 
-void draw_image2(unsigned short *out, const unsigned char *pixels, int width, int height, char dither) {
+static void draw_image2(unsigned short *out, const unsigned char *pixels, int width, int height, char dither) {
 	for (int y=0; y<height; y++) {
 		for (int chunk=0; chunk<20; chunk++) {
 			unsigned short register plane0 = 0, plane1 = 0, plane2 = 0, plane3 = 0;
@@ -192,7 +206,7 @@ void draw_image2(unsigned short *out, const unsigned char *pixels, int width, in
 	}
 }
 
-void clear_screen(unsigned short *out) {
+static void clear_screen(unsigned short *out) {
 	for (int i=0; i<16000; i++) *out++ = 0;
 }
 
@@ -200,44 +214,44 @@ typedef struct position {
 	fixp x,y,z,dirx,diry,speed;
 } position;
 
-signed short fixp_int(fixp val) {
+static signed short fixp_int(fixp val) {
 	return ((unsigned short)val) >> FIXP_PRECISION;
 }
 
-unsigned short fixp_uint(fixp val) {
+static unsigned short fixp_uint(fixp val) {
 	return ((unsigned short)val) >> FIXP_PRECISION;
 }
 
-fixp fixp_mul(fixp a, fixp b) {
+static fixp fixp_mul(fixp a, fixp b) {
 	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
 }
 
 // First-order approximation of 1/sqrt(x) around x0=1
-inline fixp fixp_sqrt_inv(fixp x) {
+static fixp fixp_sqrt_inv(fixp x) {
 	// f(1) = 1/sqrt(1)
 	// f'(x) = -0.5 * sqrt(x^(-3/2)) = -0.5 * sqrt(1/x^(3/2))
 	// f'(1) = -0.5
 	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
 }
 
-inline fixp_2in1 make_2in1(fixp a, fixp b) {
+static fixp_2in1 make_2in1(fixp a, fixp b) {
 	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
 }
 
-inline fixp_2in1 add_2in1(fixp_2in1 a, fixp_2in1 b) {
+static fixp_2in1 add_2in1(fixp_2in1 a, fixp_2in1 b) {
 	return (a + b) & 0xfffefffe;
 }
 
-inline fixp get_2in1_upper(fixp_2in1 val) {
+static fixp get_2in1_upper(fixp_2in1 val) {
 	return val >> 16;
 }
 
-inline fixp get_2in1_lower(fixp_2in1 val) {
+static fixp get_2in1_lower(fixp_2in1 val) {
 	return val & 0xffff;
 }
 
 // Draw a pixel in the specified color at x/y relative to out
-inline void put_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
+static void put_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
 	//printf("put_pixel %p %d %d %d\n", out, color, x, y);
 	if (x < 0 || x >= 320 || y < 0 || y >= 200) return;
 	out += (y << 6) + (y << 4);
@@ -266,7 +280,7 @@ inline void put_pixel(unsigned short *out, unsigned char color, unsigned short x
 
 // ORs a pixel with the specified color at x/y relative to out.
 // This is a tiny bit faster that put_pixel if the pixel was previously cleared.
-inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
+static void or_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
 	//printf("put_pixel %p %d %d %d\n", out, color, x, y);
 	out += y << 6;
 	out += y << 4;
@@ -279,7 +293,7 @@ inline void or_pixel(unsigned short *out, unsigned char color, unsigned short x,
 	//printf("put_pixel done.\n"); 
 }
 
-unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
+static unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
 	return 0
 		| ((color&1) ? pattern << 24 : 0)
 		| ((color&2) ? pattern << 16 : 0)
@@ -288,7 +302,7 @@ unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
 }
 
 // Prepares look-up tables
-void build_tables() {
+static void build_tables() {
 	// Prepare distance-dependent lookup tables.
 	// An opacity table that maps distance z to an opacity value.
 	// A y table table that associates a heightfield sample h and a distance z with a screen y coordinate.
@@ -383,12 +397,12 @@ void build_tables() {
 }
 
 // Pointer to the first of the 8 bytes of memory in pixel buffer out which contain the pixel at line y, column x
-inline unsigned char* pixel_block_address(unsigned short *out, short x, short y) {
+static unsigned char* pixel_block_address(unsigned short *out, short x, short y) {
 	return ((unsigned char *)&out[y*80 + ((x>>4)<<2)]) + ((x >> 3) & 1);
 }
 
 // Quickly fill a sequence of 8 pixels.
-inline void move_p(unsigned char *p, unsigned int data) {
+static void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
@@ -396,7 +410,7 @@ inline void move_p(unsigned char *p, unsigned int data) {
 // the (combined) sample buffer.
 // This requires a lot of bit fiddling and is tricky to get right, performance-wise, on an m68k.
 // This code leaves bits 19..31 uncleared, so another AND operation is needed (which happens anyway with index_mask)
-inline unsigned long to_offset(fixp_2in1 uv) {
+static unsigned long to_offset(fixp_2in1 uv) {
 	asm (
 		// Use a word-size operation to shift only the v coordinate to the right so that only 9 digits remain
 		"lsr.w #7, %[uv]\n\t"
@@ -409,7 +423,7 @@ inline unsigned long to_offset(fixp_2in1 uv) {
 }
 
 // Returns a sample_t using the given UV position and index mask
-inline sample_t sample_terrain(fixp_2in1 sample_uv, unsigned int index_mask) {
+static sample_t sample_terrain(fixp_2in1 sample_uv, unsigned int index_mask) {
 		unsigned int index = to_offset(sample_uv) & index_mask;
 		sample_t sample = *(sample_t*)((char*)combined + index);
 		return sample;
@@ -418,16 +432,16 @@ inline sample_t sample_terrain(fixp_2in1 sample_uv, unsigned int index_mask) {
 /// @brief Shift the index mask one position to the left and clear bits 2, and 11.
 /// @param index_mask The previous index mask
 /// @return The index mask corresponding to the next MIP level.
-inline unsigned int next_mip_level(unsigned int index_mask) {
+static unsigned int next_mip_level(unsigned int index_mask) {
 	return (index_mask << 1) & 0x7fbfd;
 }
 
-inline unsigned int get_pdata(sample_t sample, unsigned short opacity_preshifted, short y) {
+static unsigned int get_pdata(sample_t sample, unsigned short opacity_preshifted, short y) {
 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted + ((y&7) << 2);
 	return *(unsigned int *)((char*)pdata_table + offset);
 }
 
-inline unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshifted) {
+static unsigned int *pdata_offset(sample_t sample, unsigned short opacity_preshifted) {
 	unsigned short offset = (sample.both & 0xff00) + opacity_preshifted;
 	return (unsigned int *)((char*)pdata_table + offset);
 }
@@ -454,7 +468,7 @@ typedef struct {
 /// @param index_mask Bitmask to apply to sampling position (poor man's mip mapping)
 /// @param fog Whether to apply fog
 /// @return The render state with which to initialize the next render.
-inline render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short y_min, unsigned int index_mask, char fog) {
+static render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short y_min, unsigned int index_mask, char fog) {
 	fixp_2in1 sample_uv = state.sample_uv;
 	unsigned char * pBlock = state.pixel;
 	short y = state.y;
@@ -523,7 +537,7 @@ finish:
 // delta_uv is the direction (in terrain coordinates) into which the ray shoots.
 // start_height is the height (in terrain elevation units) from which the ray starts.
 // Returns the minimum y value encountered.
-short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height) {
+static short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height) {
 	short ytable_offset = 256 - start_height;
 	// Shift y_table by ytable_offset and z.
 	short (*y_table_shifted)[HEIGHT_VALUES] = (short (*)[HEIGHT_VALUES])(y_table[0] + ytable_offset);
@@ -557,7 +571,7 @@ short ray_elevation(fixp_2in1 sample_uv, fixp_2in1 delta_uv, short start_height)
 	return min_y;
 }
 
-void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
+static void fill_column(unsigned short *out, short x, short y, short height, unsigned char color) {
 	unsigned char * pBlock = pixel_block_address(out, x, y);
 	unsigned int movep_data = pdata_table[color][0][0];
 	for (short remaining = height; remaining > 0; remaining -= LINES_SKIP) {
@@ -567,7 +581,7 @@ void fill_column(unsigned short *out, short x, short y, short height, unsigned c
 }
 
 
-short patch_sky(unsigned short *out, short x, short y) {
+static short patch_sky(unsigned short *out, short x, short y) {
 	fill_column(out, x, horizon[x] + LINES_SKIP, y - horizon[x], 15);
 	horizon[x] = y;
 }
@@ -587,25 +601,25 @@ typedef union {
 } vec3_t;
 vec3_t palette_vectors[16];
 
-fixp col2fixp(unsigned char color) {
+static fixp col2fixp(unsigned char color) {
 	signed char c = color - 128;
 	return c >> 1;
 }
 
-fixp vec3_dot(vec3_t a, vec3_t b) {
+static fixp vec3_dot(vec3_t a, vec3_t b) {
 	fixp result = 0;
 	for (int i=0; i<3; i++) result += fixp_mul(a.a[i], b.a[i]);
 	return result;
 }
 
-inline vec3_t vec3_scale(fixp factor, vec3_t val) {
+static vec3_t vec3_scale(fixp factor, vec3_t val) {
 	vec3_t result;
 	for (int i=0; i< 3; i++) result.a[i] = fixp_mul(factor, val.a[i]);
 	return result;
 }
 
 // Reads a flat palette of (byte-sized) BGR colors and converts each color into a direction vector.
-void read_palette_vectors(const unsigned char *colors) {
+static void read_palette_vectors(const unsigned char *colors) {
 	for (int i=0; i<16; i++) {
 		unsigned char b = *colors++;
 		unsigned char g = *colors++;
@@ -618,18 +632,18 @@ void read_palette_vectors(const unsigned char *colors) {
 	}
 }
 
-vec3_t vec3_add(vec3_t a, vec3_t b) {
+static vec3_t vec3_add(vec3_t a, vec3_t b) {
 	vec3_t result;
 	for (int i=0; i<3; i++) result.a[i] = a.a[i] + b.a[i];
 	return result;
 }
 
-unsigned char fixp2color(fixp val) {
+static unsigned char fixp2color(fixp val) {
 	return val < 0 ? 0 : (
 		val >= FIXP(1,0) ? 255 : val << 1);
 }
 
-void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
+static void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
 	vec3_t sun = { .c = { -FIXP(24, 0)/25, 0, FIXP(7, 0)/25 }};
 	
 	vec3_t view_z = { .c = { -pos.dirx, 0, -pos.diry }};
@@ -680,12 +694,12 @@ void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
 	set_bottom_palette(dst);
 }
 
-int load_voxel_data() {
+static int load_voxel_data() {
 	unsigned char buf[8192];
-	printf("Loading colors.tga%n\r\n");
-	FILE *file1 = fopen("colors.tga", "rb");
-	if (!file1) {
-		perror("colors.tga");
+	print("Loading colors.tga\r\n");
+	long file1 = Fopen("colors.tga", S_READ);
+	if (file1 < 0) {
+		print("Error reading colors.tga\r\n");
 		goto error0;
 	}
 	image_t texture = read_tga_header(file1);
@@ -700,32 +714,30 @@ int load_voxel_data() {
 
 	size_t n, remaining = 512*512;
 	unsigned char *p = &combined[0][0].color;
-	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file1))) {
+	while (0 != (n = Fread(file1, remaining > sizeof(buf) ? sizeof(buf) : remaining, buf))) {
 		remaining -= n;
-		printf(".");
-		fflush(stdout);
+		print(".");
 		for (size_t i=0; i<n; i++) {
 			*p = buf[i];
 			p += 2;
 		}
 	}
-	printf("\r\n");
+	print("\r\n");
 	free_image(&texture);
 
-	printf("Loading height.tga\r\n");
-	FILE *file2 = fopen("height.tga", "rb");
-	if (!file2) {
-		perror("height.tga");
+	print("Loading height.tga\r\n");
+	long file2 = Fopen("height.tga", S_READ);
+	if (file2 < 0) {
+		print("Error reading height.tga\r\n");
 		goto error1;
 	}
 	image_t height = read_tga_header(file2);
 	if (!height.width) goto error2;
 	p = &combined[0][0].height;
 	remaining = 512*512;
-	while (0 != (n = fread(buf, 1, remaining > sizeof(buf) ? sizeof(buf) : remaining, file2))) {
+	while (0 != (n = Fread(file2, remaining > sizeof(buf) ? sizeof(buf) : remaining, buf))) {
 		remaining -= n;
-		printf(".");
-		fflush(stdout);
+		print(".");
 		for (size_t i=0; i<n; i++) {
 			// Don't actually store height, store 2*height because we'll be using that as an index into
 			// an array of shorts.
@@ -733,26 +745,26 @@ int load_voxel_data() {
 			p += 2;
 		}
 	}
-	printf("\r\n");
+	print("\r\n");
 	free_image(&height);
 
-	fclose(file1);
-	fclose(file2);
+	Fclose(file1);
+	Fclose(file2);
 	return 1; // success
 
 error2:
-	fclose(file2);
+	Fclose(file2);
 error1:
-	fclose(file1);
+	Fclose(file1);
 error0:
 	return 0;
 }
 
-unsigned char get_key() {
+static unsigned char get_key() {
 	return Bconstat(_CON) ? (Bconin(_CON) & 0xff0000) >> 16 : 0;
 }
 
-void wait_for_key() {
+static void wait_for_key() {
 	while (Bconstat(_CON))
 		;
 	while (!Bconstat(_CON))
@@ -760,28 +772,21 @@ void wait_for_key() {
 	Bconin(_CON);
 }
 
-void probe_available_memory(size_t min_avail, size_t max_avail) {
-	size_t sample = (min_avail + max_avail) >> 1;
-	if (sample == min_avail) {
-		printf("Available memory: %d bytes.\r\n", sample);
-		long size = Malloc(-1);
-		printf("TOS reports %d bytes free.\r\n", size);
-		return;
-	}
-	void *p = malloc(sample);
-	if (p) {
-		free(p);
-		probe_available_memory(sample, max_avail);
-	} else {
-		probe_available_memory(min_avail, sample);
-	}
+static void probe_available_memory() {
+	long size = Malloc(-1);
+	print("TOS reports ");
+	printnum(size);
+	print(" bytes free.\r\n");
 }
 
 #define FRAMES 800
 
 int main(int argc, char **argv) {
 	// Set cursor to home and stop blinking.
-	printf("\33H\33f\r\n\r\n");
+	Bconout(_CON, '\33');
+	Bconout(_CON, 'H');
+	Bconout(_CON, '\33');
+	Bconout(_CON, 'f');
 
 	// Enter supervisor mode so we can use HW registers
 	Super(0L);
@@ -798,14 +803,14 @@ int main(int argc, char **argv) {
 	*conterm &= ~1;
 
 	if (!load_voxel_data()) {
-		printf("Failed to load voxel data.\r\n");
+		print("Failed to load voxel data.\r\n");
 		goto error;
 	}
 
-	printf("Loading cockpit.tga\r\n");
+	print("Loading cockpit.tga\r\n");
 	image_t cockpit = read_tga("cockpit.tga");
-	probe_available_memory(0, 4 * 1024 * 1024);
-	printf("Computing tables\r\n");
+	probe_available_memory();
+	print("Computing tables\r\n");
 	build_tables();
 	if (!cockpit.pixels) goto error;
 	read_palette_vectors(cockpit.colors);
@@ -989,13 +994,16 @@ int main(int argc, char **argv) {
 	unsigned long t1 = *_hz_200;
 	unsigned long millis = (t1 - t0) * 5;
 	unsigned long millis_per_frame = millis / frames;
-	printf("Total time per frame: %dms\r\n", millis_per_frame);
-	printf("Time spent rendering terrain: %dms\r\n", t_render * 5 / frames);
+	print("Total time per frame: ");
+	printnum(millis_per_frame);
+	print("\r\nTime spent rendering terrain: ");
+	printnum(t_render * 5 / frames);
+	print("\r\n");
 	uninstall_interrupts();
 	uninstall_joystick_handler();
 	
 error:
-	printf("Press any key to exit to TOS.\r\n");
+	print("Press any key to exit to TOS.\r\n");
 	wait_for_key();
 	install_palette(saved_palette);
 	return 0;

@@ -18,7 +18,7 @@ void on_vblank() {
 	install_palette(top_palette);
 }
 
-void __attribute__((interrupt)) timer_b_handler() {
+static void __attribute__((interrupt)) timer_b_handler() {
 	install_palette(palette_curr);
 	*interrupt_in_service_a &= ~1;
 }
@@ -52,7 +52,7 @@ void uninstall_interrupts() {
 	*level4_vector = jmp_old_handler.target;
 }
 
-void convert_palette(const unsigned char *colors, unsigned short *out_palette) {
+static void convert_palette(const unsigned char *colors, unsigned short *out_palette) {
 	for (short n = 0; n < 16; n++) {
 		short entry = 0;
 		for (short c = 0; c < 3; c++) {
