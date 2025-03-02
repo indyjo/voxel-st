@@ -1,7 +1,10 @@
 #include <mint/linea.h>
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "interrupt.h"
 #include "joystick.h"
 #include "palette.h"
@@ -58,7 +61,53 @@ typedef unsigned int fixp_2in1;
 #define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
 
 // Draw only every second column?
-#define INTERLACE_COLUMNS 1
+#define INTERLACE_COLUMNS 0
+
+#define USE_LIBCMINI 1
+
+#if USE_LIBCMINI
+__LINEA *__aline;
+__FONT  **__fonts;
+short  (**__funcs) (void);
+
+void perror(const char *msg) {
+	printf("%s: %s\r\n", strerror(errno), msg);
+}
+
+#define LINEA_OPCODE_BASE 0xa000
+#define ASM_LINEA3(opcode) ".word	" #opcode
+#define ASM_LINEA2(opcode) ASM_LINEA3(opcode)
+#define ASM_LINEA(n) ASM_LINEA2(LINEA_OPCODE_BASE+n)
+
+void linea0(void)
+{
+	register __LINEA *__xaline __asm__("a0");
+	register __FONT **__xfonts __asm__("a1");
+	register short (**__xfuncs)(void) __asm__("a2");
+
+	__asm__ volatile(
+		ASM_LINEA(0x0)
+		: "=g"(__xaline), "=g"(__xfonts), "=g"(__xfuncs)											  /* outputs */
+		:																							  /* inputs  */
+		: __CLOBBER_RETURN("a0") __CLOBBER_RETURN("a1") __CLOBBER_RETURN("a2") "d0", "d1", "d2", "cc" /* clobbered regs */
+		  AND_MEMORY);
+
+	__aline = __xaline;
+	__fonts = __xfonts;
+	__funcs = __xfuncs;
+}
+
+void lineaa(void)
+{
+	__asm__ volatile(
+		ASM_LINEA(0xa)
+		:										   /* outputs */
+		:										   /* inputs  */
+		: "d0", "d1", "d2", "a0", "a1", "a2", "cc" /* clobbered regs */
+		  AND_MEMORY);
+}
+
+#endif // USE_LIBCMINI
 
 inline fixp progression(fixp x) {
 	return x + x;
@@ -633,7 +682,7 @@ void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
 
 int load_voxel_data() {
 	unsigned char buf[8192];
-	printf("Loading colors.tga\n");
+	printf("Loading colors.tga%n\r\n");
 	FILE *file1 = fopen("colors.tga", "rb");
 	if (!file1) {
 		perror("colors.tga");
@@ -660,10 +709,10 @@ int load_voxel_data() {
 			p += 2;
 		}
 	}
-	printf("\n");
+	printf("\r\n");
 	free_image(&texture);
 
-	printf("Loading height.tga\n");
+	printf("Loading height.tga\r\n");
 	FILE *file2 = fopen("height.tga", "rb");
 	if (!file2) {
 		perror("height.tga");
@@ -684,7 +733,7 @@ int load_voxel_data() {
 			p += 2;
 		}
 	}
-	printf("\n");
+	printf("\r\n");
 	free_image(&height);
 
 	fclose(file1);
@@ -711,11 +760,28 @@ void wait_for_key() {
 	Bconin(_CON);
 }
 
+void probe_available_memory(size_t min_avail, size_t max_avail) {
+	size_t sample = (min_avail + max_avail) >> 1;
+	if (sample == min_avail) {
+		printf("Available memory: %d bytes.\r\n", sample);
+		long size = Malloc(-1);
+		printf("TOS reports %d bytes free.\r\n", size);
+		return;
+	}
+	void *p = malloc(sample);
+	if (p) {
+		free(p);
+		probe_available_memory(sample, max_avail);
+	} else {
+		probe_available_memory(min_avail, sample);
+	}
+}
+
 #define FRAMES 800
 
 int main(int argc, char **argv) {
 	// Set cursor to home and stop blinking.
-	printf("\33H\33f\n\n");
+	printf("\33H\33f\r\n\r\n");
 
 	// Enter supervisor mode so we can use HW registers
 	Super(0L);
@@ -732,14 +798,15 @@ int main(int argc, char **argv) {
 	*conterm &= ~1;
 
 	if (!load_voxel_data()) {
-		printf("Failed to load voxel data.\n");
+		printf("Failed to load voxel data.\r\n");
 		goto error;
 	}
 
-	printf("Computing tables\n");
-	build_tables();
-	printf("Loading cockpit.tga\n");
+	printf("Loading cockpit.tga\r\n");
 	image_t cockpit = read_tga("cockpit.tga");
+	probe_available_memory(0, 4 * 1024 * 1024);
+	printf("Computing tables\r\n");
+	build_tables();
 	if (!cockpit.pixels) goto error;
 	read_palette_vectors(cockpit.colors);
 	
@@ -922,13 +989,13 @@ int main(int argc, char **argv) {
 	unsigned long t1 = *_hz_200;
 	unsigned long millis = (t1 - t0) * 5;
 	unsigned long millis_per_frame = millis / frames;
-	printf("Total time per frame: %dms\n", millis_per_frame);
-	printf("Time spent rendering terrain: %dms\n", t_render * 5 / frames);
+	printf("Total time per frame: %dms\r\n", millis_per_frame);
+	printf("Time spent rendering terrain: %dms\r\n", t_render * 5 / frames);
 	uninstall_interrupts();
 	uninstall_joystick_handler();
 	
 error:
-	printf("Press any key to exit to TOS.\n");
+	printf("Press any key to exit to TOS.\r\n");
 	wait_for_key();
 	install_palette(saved_palette);
 	return 0;
