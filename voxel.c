@@ -57,18 +57,16 @@ typedef unsigned int fixp_2in1;
 #define TRIGGERS_MIPMAP(z) (((z) & ((1<<4)-1)) == 0)
 
 // Draw only every second column?
-#define INTERLACE_COLUMNS 0
+#define INTERLACE_COLUMNS 1
 
-#define USE_LIBCMINI 1
-
-static void print(const char *s) {
+__attribute__((noinline)) static void print(const char *s) {
 	while (*s) {
 		Bconout(_CON, *s);
 		s++;
 	}
 }
 
-static void printnum(long n) {
+__attribute__((noinline)) static void printnum(long n) {
 	char neg = n < 0;
 	if (neg) n = -n;
 	char buf[16];
@@ -81,47 +79,6 @@ static void printnum(long n) {
 	if (neg) *(--p)='-';
 	print(p);
 }
-
-
-#if USE_LIBCMINI
-__LINEA *__aline;
-__FONT  **__fonts;
-short  (**__funcs) (void);
-
-#define LINEA_OPCODE_BASE 0xa000
-#define ASM_LINEA3(opcode) ".word	" #opcode
-#define ASM_LINEA2(opcode) ASM_LINEA3(opcode)
-#define ASM_LINEA(n) ASM_LINEA2(LINEA_OPCODE_BASE+n)
-
-void linea0(void)
-{
-	register __LINEA *__xaline __asm__("a0");
-	register __FONT **__xfonts __asm__("a1");
-	register short (**__xfuncs)(void) __asm__("a2");
-
-	__asm__ volatile(
-		ASM_LINEA(0x0)
-		: "=g"(__xaline), "=g"(__xfonts), "=g"(__xfuncs)											  /* outputs */
-		:																							  /* inputs  */
-		: __CLOBBER_RETURN("a0") __CLOBBER_RETURN("a1") __CLOBBER_RETURN("a2") "d0", "d1", "d2", "cc" /* clobbered regs */
-		  AND_MEMORY);
-
-	__aline = __xaline;
-	__fonts = __xfonts;
-	__funcs = __xfuncs;
-}
-
-void lineaa(void)
-{
-	__asm__ volatile(
-		ASM_LINEA(0xa)
-		:										   /* outputs */
-		:										   /* inputs  */
-		: "d0", "d1", "d2", "a0", "a1", "a2", "cc" /* clobbered regs */
-		  AND_MEMORY);
-}
-
-#endif // USE_LIBCMINI
 
 static fixp progression(fixp x) {
 	return x + x;
@@ -302,7 +259,7 @@ static unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
 }
 
 // Prepares look-up tables
-static void build_tables() {
+__attribute__((noinline)) static void build_tables() {
 	// Prepare distance-dependent lookup tables.
 	// An opacity table that maps distance z to an opacity value.
 	// A y table table that associates a heightfield sample h and a distance z with a screen y coordinate.
@@ -781,12 +738,9 @@ static void probe_available_memory() {
 
 #define FRAMES 800
 
-int main(int argc, char **argv) {
+int mymain(int argc, char **argv) {
 	// Set cursor to home and stop blinking.
-	Bconout(_CON, '\33');
-	Bconout(_CON, 'H');
-	Bconout(_CON, '\33');
-	Bconout(_CON, 'f');
+	print("\33H\33f");
 
 	// Enter supervisor mode so we can use HW registers
 	Super(0L);

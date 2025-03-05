@@ -9,6 +9,4 @@ To build, have `$CC` point to `m68k-atari-mint-m68k-gcc` and enter the following
 
     make "CFLAGS=-O3" "LDFLAGS=-s"
 
-It might be necessary to edit `Makefile` to configure the path to _libcmini_.
-
 Have fun!
