@@ -6,7 +6,7 @@ extern int mymain(int, char **);
 
 // Must be the very first function so it gets linked in at the beginning of the text segment.
 __attribute__((noreturn)) void start(BASEPAGE *pb) {
-    unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 32768;
+    unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 16384;
     //(m + 3L) & (~3L)
     if (0 != Mshrink(pb, newsize)) {
         Pterm(42);

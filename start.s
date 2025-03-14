@@ -8,14 +8,14 @@
 _start:
 	movem.l #14384,-(%sp)	|,
 	move.l 24(%sp),%a3	| pb, pb
-| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 32768;
+| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 16384;
 	move.l 12(%a3),%d3	| pb_12(D)->p_tlen, tmp48
 	add.l 20(%a3),%d3	| pb_12(D)->p_dlen, tmp48
-| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 32768;
+| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 16384;
 	add.l 28(%a3),%d3	| pb_12(D)->p_blen, _8
-| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 32768;
+| start.c:9:     unsigned long newsize = sizeof(BASEPAGE) + pb->p_tlen + pb->p_dlen + pb->p_blen + 16384;
 	move.l %d3,%d4	| _8, newsize
-	add.l #33024,%d4	|, newsize
+	add.l #16640,%d4	|, newsize
 | start.c:11:     if (0 != Mshrink(pb, newsize)) {
 	clr.w %d0	| tmp49
 #APP
@@ -43,7 +43,7 @@ _start:
 #NO_APP
 .L2:
 | start.c:15:     char * newsp = (char *)pb + newsize - 128;
-	add.l #32896,%d3	|, tmp52
+	add.l #16512,%d3	|, tmp52
 | start.c:15:     char * newsp = (char *)pb + newsize - 128;
 	add.l %d3,%a3	| tmp52, newsp
 | start.c:16: 	__asm__ __volatile__(

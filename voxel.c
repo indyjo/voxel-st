@@ -16,7 +16,7 @@ typedef signed short fixp;
 typedef unsigned int fixp_2in1;
 
 // Should mouse control be active?
-#define INTERACTIVE
+//#define INTERACTIVE
 
 // If defined, background color is used to measure performance
 //#define COLORBAR_PROFILING
@@ -235,21 +235,6 @@ static void put_pixel(unsigned short *out, unsigned char color, unsigned short x
 	//printf("put_pixel done.\n"); 
 }
 
-// ORs a pixel with the specified color at x/y relative to out.
-// This is a tiny bit faster that put_pixel if the pixel was previously cleared.
-static void or_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
-	//printf("put_pixel %p %d %d %d\n", out, color, x, y);
-	out += y << 6;
-	out += y << 4;
-	out += (x >> 4) << 2;
-	x &= 0xf;
-	*out++ |= (color & 1) << (15-x);;
-	*out++ |= ((color & 2) >> 1) << (15-x);
-	*out++ |= ((color & 4) >> 2) << (15-x);
-	*out++ |= ((color & 8) >> 3) << (15-x);
-	//printf("put_pixel done.\n"); 
-}
-
 static unsigned int pdata_pattern(unsigned char color, unsigned char pattern) {
 	return 0
 		| ((color&1) ? pattern << 24 : 0)
@@ -332,7 +317,7 @@ __attribute__((noinline)) static void build_tables() {
 		16, 14, 12, 11, 10,
 		9, 9, 8, 8, 8,
 		8, 8, 8, 9, 10,
-		11, 12, 12, 12, 12
+		11, 12, 34, 34, 34
 	};
 	short bottom_envelope[20] = {
 		7, 6, 5, 4, 3,
@@ -361,6 +346,113 @@ static unsigned char* pixel_block_address(unsigned short *out, short x, short y)
 // Quickly fill a sequence of 8 pixels.
 static void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
+}
+
+
+static unsigned int c2p_table[2][256]; 
+
+static void init_c2p_table() {
+	for (int i=0; i<256; i++) {
+		unsigned int pdata = 0;
+		if (i & 1) pdata |= 0xaa000000;
+		if (i & 2) pdata |= 0x00aa0000;
+		if (i & 4) pdata |= 0x0000aa00;
+		if (i & 8) pdata |= 0x000000aa;
+
+		unsigned char c = (i & 0xf) + (i >> 4);
+		if (c & 1) pdata |= 0x55000000;
+		if (c & 2) pdata |= 0x00550000;
+		if (c & 4) pdata |= 0x00005500;
+		if (c & 8) pdata |= 0x00000055;
+		c2p_table[0][i] = pdata;
+	}
+
+	for (int i=0; i<256; i++) {
+		unsigned int pdata = 0;
+		if (i & 1) pdata |= 0x55000000;
+		if (i & 2) pdata |= 0x00550000;
+		if (i & 4) pdata |= 0x00005500;
+		if (i & 8) pdata |= 0x00000055;
+
+		unsigned char c = (i & 0xf) + (i >> 4);
+		if (c & 1) pdata |= 0xaa000000;
+		if (c & 2) pdata |= 0x00aa0000;
+		if (c & 4) pdata |= 0x0000aa00;
+		if (c & 8) pdata |= 0x000000aa;
+		c2p_table[1][i] = pdata;
+	}
+}
+
+static void c2p(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned char odd) {
+	const unsigned int *table = c2p_table[odd];
+	while (pixels > 15) {
+		unsigned int pdata = 0; // 8 pixel data for use with movep
+		pdata |= table[*in++] & 0x80808080;
+		pdata |= table[*in++] & 0x40404040;
+		pdata |= table[*in++] & 0x20202020;
+		pdata |= table[*in++] & 0x10101010;
+		pdata |= table[*in++] & 0x08080808;
+		pdata |= table[*in++] & 0x04040404;
+		pdata |= table[*in++] & 0x02020202;
+		pdata |= table[*in++] & 0x01010101;
+		move_p(out, pdata);
+		pdata = 0;
+		pdata |= table[*in++] & 0x80808080;
+		pdata |= table[*in++] & 0x40404040;
+		pdata |= table[*in++] & 0x20202020;
+		pdata |= table[*in++] & 0x10101010;
+		pdata |= table[*in++] & 0x08080808;
+		pdata |= table[*in++] & 0x04040404;
+		pdata |= table[*in++] & 0x02020202;
+		pdata |= table[*in++] & 0x01010101;
+		move_p(out+1, pdata);
+		pixels -= 16;
+		out += 8;
+	}
+}
+
+static void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned short skip, unsigned char odd) {
+	const unsigned int *table = c2p_table[odd];
+	while (pixels > 15) {
+		unsigned int pdata = 0; // 8 pixel data for use with movep
+		pdata |= table[*in] & 0x80808080;
+		in += skip;
+		pdata |= table[*in] & 0x40404040;
+		in += skip;
+		pdata |= table[*in] & 0x20202020;
+		in += skip;
+		pdata |= table[*in] & 0x10101010;
+		in += skip;
+		pdata |= table[*in] & 0x08080808;
+		in += skip;
+		pdata |= table[*in] & 0x04040404;
+		in += skip;
+		pdata |= table[*in] & 0x02020202;
+		in += skip;
+		pdata |= table[*in] & 0x01010101;
+		in += skip;
+		move_p(out, pdata);
+		pdata = 0;
+		pdata |= table[*in] & 0x80808080;
+		in += skip;
+		pdata |= table[*in] & 0x40404040;
+		in += skip;
+		pdata |= table[*in] & 0x20202020;
+		in += skip;
+		pdata |= table[*in] & 0x10101010;
+		in += skip;
+		pdata |= table[*in] & 0x08080808;
+		in += skip;
+		pdata |= table[*in] & 0x04040404;
+		in += skip;
+		pdata |= table[*in] & 0x02020202;
+		in += skip;
+		pdata |= table[*in] & 0x01010101;
+		in += skip;
+		move_p(out+1, pdata);
+		pixels -= 16;
+		out += 8;
+	}
 }
 
 // Given a pair of fixpoint coordinates u and v (as a combined value), returns a byte offset into
@@ -543,6 +635,20 @@ static short patch_sky(unsigned short *out, short x, short y) {
 	horizon[x] = y;
 }
 
+static void draw_map(unsigned char *out, fixp posx, fixp posy, unsigned char odd) {
+	unsigned short v = (fixp_uint(posy) - 128) & (HEIGHT-1);
+	unsigned short u = (fixp_uint(posx) - 256) & (WIDTH-1);
+	if (v == HEIGHT - 1) v = 0;
+	out += 64; 
+	for (short y = 0; y < 32; y++) {
+		c2p_skip(out, (unsigned char *)(combined[v]+u), 64, 16, odd ^ (y&1));
+		out += 160;
+		v += 8;
+		if (v >= HEIGHT) v -= HEIGHT;
+		else if (v == HEIGHT - 1) v = 0;
+	}
+}
+
 position pos = {
 	.x = FIXP(145, 0),
 	.y = FIXP(340, 0),
@@ -651,7 +757,7 @@ static void compute_and_set_bottom_palette(int frame, fixp sunlight_factor) {
 	set_bottom_palette(dst);
 }
 
-static int load_voxel_data() {
+static int load_voxel_data(unsigned short *screen) {
 	unsigned char buf[8192];
 	print("Loading colors.tga\r\n");
 	long file1 = Fopen("colors.tga", S_READ);
@@ -671,12 +777,18 @@ static int load_voxel_data() {
 
 	size_t n, remaining = 512*512;
 	unsigned char *p = &combined[0][0].color;
+	short lines_remaining = 200;
 	while (0 != (n = Fread(file1, remaining > sizeof(buf) ? sizeof(buf) : remaining, buf))) {
 		remaining -= n;
 		print(".");
 		for (size_t i=0; i<n; i++) {
 			*p = buf[i];
 			p += 2;
+		}
+		for (size_t i=0; i<n && lines_remaining > 0; i+=512) {
+			c2p((unsigned char*)screen, buf+i, 320, lines_remaining & 1);
+			screen += 80; // advance screen pointer one line
+			lines_remaining--;
 		}
 	}
 	print("\r\n");
@@ -756,7 +868,9 @@ int mymain(int argc, char **argv) {
 	// Disable key click
 	*conterm &= ~1;
 
-	if (!load_voxel_data()) {
+	init_c2p_table();
+
+	if (!load_voxel_data(screen)) {
 		print("Failed to load voxel data.\r\n");
 		goto error;
 	}
@@ -872,6 +986,10 @@ int mymain(int argc, char **argv) {
 		set_color(0x700);
 		unsigned long t_render_1 = *_hz_200;
 		t_render += t_render_1 - t_render_0;
+
+		// Draw a little map
+		draw_map((unsigned char *)screen, pos.x, pos.y, frames & 1);
+
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
 		// the direct sunlight is obscured by terrain.
 		//short elev_to_sun = ray_elevation(pos.x, pos.y, -FIXP(1, 0), FIXP(0, 0), fixp_int(pos.z));
