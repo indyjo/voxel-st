@@ -1,6 +1,6 @@
-assembly = start.o voxel.o
+assembly = start.o voxel.o c2p.o
 
-voxel.tos: start.o voxel.o tga.o interrupt.o joystick.o palette.o
+voxel.tos: start.o voxel.o tga.o interrupt.o joystick.o palette.o c2p.o
 	$(CC) $(LDFLAGS) -nostartfiles -o $@ $+
 
 %.s: %.c

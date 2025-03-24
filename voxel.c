@@ -1,22 +1,17 @@
 #include <mint/linea.h>
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
+#include <stddef.h>
 #include "interrupt.h"
 #include "joystick.h"
 #include "palette.h"
 #include "tga.h"
+#include "c2p.h"
+#include "fixp.h"
 
-// The fixpoint format was chosen so that exactly 512 integral values exist, with 7 bit fractional part.
-// This way, the integral part maps directly to a coordinate from the 512x512 heightfield.
-#define FIXP_PRECISION 7
-#define FIXP_FRACT_MASK ((1 << FIXP_PRECISION) - 1)
-#define FIXP_FACTOR (1<<FIXP_PRECISION)
-#define FIXP(_r,_f) ((((_r) << FIXP_PRECISION) & ~FIXP_FRACT_MASK) | (_f & FIXP_FRACT_MASK))
-typedef signed short fixp;
-typedef unsigned int fixp_2in1;
 
 // Should mouse control be active?
-//#define INTERACTIVE
+#define INTERACTIVE
 
 // If defined, background color is used to measure performance
 //#define COLORBAR_PROFILING
@@ -171,42 +166,6 @@ typedef struct position {
 	fixp x,y,z,dirx,diry,speed;
 } position;
 
-static signed short fixp_int(fixp val) {
-	return ((unsigned short)val) >> FIXP_PRECISION;
-}
-
-static unsigned short fixp_uint(fixp val) {
-	return ((unsigned short)val) >> FIXP_PRECISION;
-}
-
-static fixp fixp_mul(fixp a, fixp b) {
-	return (fixp)(((int)a * (int)b) >> FIXP_PRECISION);
-}
-
-// First-order approximation of 1/sqrt(x) around x0=1
-static fixp fixp_sqrt_inv(fixp x) {
-	// f(1) = 1/sqrt(1)
-	// f'(x) = -0.5 * sqrt(x^(-3/2)) = -0.5 * sqrt(1/x^(3/2))
-	// f'(1) = -0.5
-	return FIXP(1,0) - ((x - FIXP(1,0)) >> 1);
-}
-
-static fixp_2in1 make_2in1(fixp a, fixp b) {
-	return (((unsigned int)(unsigned short)a << 16) | (unsigned short)b) & 0xfffefffe;
-}
-
-static fixp_2in1 add_2in1(fixp_2in1 a, fixp_2in1 b) {
-	return (a + b) & 0xfffefffe;
-}
-
-static fixp get_2in1_upper(fixp_2in1 val) {
-	return val >> 16;
-}
-
-static fixp get_2in1_lower(fixp_2in1 val) {
-	return val & 0xffff;
-}
-
 // Draw a pixel in the specified color at x/y relative to out
 static void put_pixel(unsigned short *out, unsigned char color, unsigned short x, unsigned short y) {
 	//printf("put_pixel %p %d %d %d\n", out, color, x, y);
@@ -317,7 +276,7 @@ __attribute__((noinline)) static void build_tables() {
 		16, 14, 12, 11, 10,
 		9, 9, 8, 8, 8,
 		8, 8, 8, 9, 10,
-		11, 12, 34, 34, 34
+		34, 34, 34, 34, 34
 	};
 	short bottom_envelope[20] = {
 		7, 6, 5, 4, 3,
@@ -348,112 +307,6 @@ static void move_p(unsigned char *p, unsigned int data) {
 	asm ("movep.l %0, 0(%1)" : : "d" (data), "a" (p));
 }
 
-
-static unsigned int c2p_table[2][256]; 
-
-static void init_c2p_table() {
-	for (int i=0; i<256; i++) {
-		unsigned int pdata = 0;
-		if (i & 1) pdata |= 0xaa000000;
-		if (i & 2) pdata |= 0x00aa0000;
-		if (i & 4) pdata |= 0x0000aa00;
-		if (i & 8) pdata |= 0x000000aa;
-
-		unsigned char c = (i & 0xf) + (i >> 4);
-		if (c & 1) pdata |= 0x55000000;
-		if (c & 2) pdata |= 0x00550000;
-		if (c & 4) pdata |= 0x00005500;
-		if (c & 8) pdata |= 0x00000055;
-		c2p_table[0][i] = pdata;
-	}
-
-	for (int i=0; i<256; i++) {
-		unsigned int pdata = 0;
-		if (i & 1) pdata |= 0x55000000;
-		if (i & 2) pdata |= 0x00550000;
-		if (i & 4) pdata |= 0x00005500;
-		if (i & 8) pdata |= 0x00000055;
-
-		unsigned char c = (i & 0xf) + (i >> 4);
-		if (c & 1) pdata |= 0xaa000000;
-		if (c & 2) pdata |= 0x00aa0000;
-		if (c & 4) pdata |= 0x0000aa00;
-		if (c & 8) pdata |= 0x000000aa;
-		c2p_table[1][i] = pdata;
-	}
-}
-
-static void c2p(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned char odd) {
-	const unsigned int *table = c2p_table[odd];
-	while (pixels > 15) {
-		unsigned int pdata = 0; // 8 pixel data for use with movep
-		pdata |= table[*in++] & 0x80808080;
-		pdata |= table[*in++] & 0x40404040;
-		pdata |= table[*in++] & 0x20202020;
-		pdata |= table[*in++] & 0x10101010;
-		pdata |= table[*in++] & 0x08080808;
-		pdata |= table[*in++] & 0x04040404;
-		pdata |= table[*in++] & 0x02020202;
-		pdata |= table[*in++] & 0x01010101;
-		move_p(out, pdata);
-		pdata = 0;
-		pdata |= table[*in++] & 0x80808080;
-		pdata |= table[*in++] & 0x40404040;
-		pdata |= table[*in++] & 0x20202020;
-		pdata |= table[*in++] & 0x10101010;
-		pdata |= table[*in++] & 0x08080808;
-		pdata |= table[*in++] & 0x04040404;
-		pdata |= table[*in++] & 0x02020202;
-		pdata |= table[*in++] & 0x01010101;
-		move_p(out+1, pdata);
-		pixels -= 16;
-		out += 8;
-	}
-}
-
-static void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned short skip, unsigned char odd) {
-	const unsigned int *table = c2p_table[odd];
-	while (pixels > 15) {
-		unsigned int pdata = 0; // 8 pixel data for use with movep
-		pdata |= table[*in] & 0x80808080;
-		in += skip;
-		pdata |= table[*in] & 0x40404040;
-		in += skip;
-		pdata |= table[*in] & 0x20202020;
-		in += skip;
-		pdata |= table[*in] & 0x10101010;
-		in += skip;
-		pdata |= table[*in] & 0x08080808;
-		in += skip;
-		pdata |= table[*in] & 0x04040404;
-		in += skip;
-		pdata |= table[*in] & 0x02020202;
-		in += skip;
-		pdata |= table[*in] & 0x01010101;
-		in += skip;
-		move_p(out, pdata);
-		pdata = 0;
-		pdata |= table[*in] & 0x80808080;
-		in += skip;
-		pdata |= table[*in] & 0x40404040;
-		in += skip;
-		pdata |= table[*in] & 0x20202020;
-		in += skip;
-		pdata |= table[*in] & 0x10101010;
-		in += skip;
-		pdata |= table[*in] & 0x08080808;
-		in += skip;
-		pdata |= table[*in] & 0x04040404;
-		in += skip;
-		pdata |= table[*in] & 0x02020202;
-		in += skip;
-		pdata |= table[*in] & 0x01010101;
-		in += skip;
-		move_p(out+1, pdata);
-		pixels -= 16;
-		out += 8;
-	}
-}
 
 // Given a pair of fixpoint coordinates u and v (as a combined value), returns a byte offset into
 // the (combined) sample buffer.
@@ -635,17 +488,44 @@ static short patch_sky(unsigned short *out, short x, short y) {
 	horizon[x] = y;
 }
 
-static void draw_map(unsigned char *out, fixp posx, fixp posy, unsigned char odd) {
-	unsigned short v = (fixp_uint(posy) - 128) & (HEIGHT-1);
-	unsigned short u = (fixp_uint(posx) - 256) & (WIDTH-1);
-	if (v == HEIGHT - 1) v = 0;
-	out += 64; 
-	for (short y = 0; y < 32; y++) {
-		c2p_skip(out, (unsigned char *)(combined[v]+u), 64, 16, odd ^ (y&1));
+static void sample_map_line(unsigned char *out, fixp_2in1 sample_uv, fixp_2in1 delta_uv, short samples) {
+	for (; samples > 0; --samples) {
+		sample_t sample = sample_terrain(sample_uv, 0x7fffe);
+		*out++ = sample.color;
+		sample_uv = add_2in1(sample_uv, delta_uv);
+	}
+}
+
+#define MAP_SCALE 16
+
+static void draw_map(unsigned char *out, const position *pos, unsigned char odd) {
+	unsigned char buffer[32];
+
+	fixp_2in1 sample_uv = make_2in1(
+		pos->x + 12 * MAP_SCALE * pos->dirx + 16 * MAP_SCALE * pos->diry,
+		pos->y + 12 * MAP_SCALE * pos->diry - 16 * MAP_SCALE * pos->dirx);
+	fixp_2in1 back = make_2in1(-MAP_SCALE * pos->dirx, -MAP_SCALE * pos->diry);
+	fixp_2in1 right = make_2in1(-MAP_SCALE * pos->diry, MAP_SCALE * pos->dirx);
+
+	// top-left corner of map on screen
+	out += 64;
+
+	// Draw 32 pixels of map, ignoring every second row.
+	for (short y = 0; y < 16; y++) {
+		if ((odd ^ y) & 1) {
+			sample_uv = add_2in1(sample_uv, back);
+			out += 320;
+			continue;;
+		}
+		sample_map_line(buffer, sample_uv, right, 32);
+		sample_uv = add_2in1(sample_uv, back);
+
+		c2p_x2(out, buffer, 64, odd);
 		out += 160;
-		v += 8;
-		if (v >= HEIGHT) v -= HEIGHT;
-		else if (v == HEIGHT - 1) v = 0;
+		odd = !odd;
+		c2p_x2(out, buffer, 64, odd);
+		out += 160;
+		odd = !odd;
 	}
 }
 
@@ -835,7 +715,7 @@ static unsigned char get_key() {
 
 static void wait_for_key() {
 	while (Bconstat(_CON))
-		;
+		Bconin(_CON);
 	while (!Bconstat(_CON))
 		;
 	Bconin(_CON);
@@ -899,7 +779,7 @@ int mymain(int argc, char **argv) {
 	char fog_enabled = FOG_ENABLED_INITIALLY;
 
 	unsigned long t0 = *_hz_200;
-	unsigned long t_render = 0;
+	unsigned long t_render = 0, t_map = 0;
 	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
 
@@ -988,7 +868,9 @@ int mymain(int argc, char **argv) {
 		t_render += t_render_1 - t_render_0;
 
 		// Draw a little map
-		draw_map((unsigned char *)screen, pos.x, pos.y, frames & 1);
+		draw_map((unsigned char *)screen, &pos, frames & 1);
+		unsigned long t_render_2 = *_hz_200;
+		t_map += t_render_2 - t_render_1;
 
 		// Compute the elevation of the terrain in the direction of the sun to find out by what factor
 		// the direct sunlight is obscured by terrain.
@@ -1070,6 +952,8 @@ int mymain(int argc, char **argv) {
 	printnum(millis_per_frame);
 	print("\r\nTime spent rendering terrain: ");
 	printnum(t_render * 5 / frames);
+	print("\r\nTime spent rendering map: ");
+	printnum(t_map * 5 / frames);
 	print("\r\n");
 	uninstall_interrupts();
 	uninstall_joystick_handler();
