@@ -4,8 +4,10 @@ static void move_p_ofs(unsigned char *p, unsigned int data, unsigned char ofs) {
 	asm ("movep.l %0, %c2(%1)" : : "d" (data), "a" (p), "i" (ofs));
 }
 
-static unsigned int c2p_table[2][256];
-static unsigned int c2p_x2_table[2][4][256];
+static unsigned long c2p_table[2][256];
+
+// [even/odd][pixel 0...3][color]
+static unsigned long c2p_x2_table[2][4][256];
 
 void init_c2p_table() {
 	for (int i=0; i<256; i++) {
@@ -66,7 +68,7 @@ void c2p(unsigned char *out, const unsigned char *in, unsigned short pixels, uns
 }
 
 void c2p_x2(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned char odd) {
-    unsigned int (*table)[4][256] = c2p_x2_table + (odd & 1);
+    unsigned long (*table)[4][256] = c2p_x2_table + (odd & 1);
 	while (pixels > 15) {
 		unsigned int pdata; // 8 pixel data for use with movep
 		for (int j=0; j<2; j++) {
@@ -84,8 +86,8 @@ void c2p_x2(unsigned char *out, const unsigned char *in, unsigned short pixels, 
 
 
 void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned long skip, unsigned char odd) {
-	const unsigned int *table = c2p_table[odd & 1];
-	const unsigned int *other = c2p_table[!odd & 1];
+	const unsigned long *table = c2p_table[odd & 1];
+	const unsigned long *other = c2p_table[!odd & 1];
     unsigned short groups = pixels >> 4;
 	while (groups-- > 0) {
 		for (int j=0; j<2; j++) {
@@ -94,7 +96,7 @@ void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels
 				pdata <<= 1;
 				pdata |= table[*in];
 				in += skip;
-				const unsigned int *temp = table;
+				const unsigned long *temp = table;
 				table = other;
 				other = temp;
 			}
@@ -103,3 +105,67 @@ void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels
 		out += 8;
 	}
 }
+
+#define ASSEMBLER 1
+#if ASSEMBLER
+
+void c2p_w4_2x2_vertical(unsigned char *out, const unsigned short *in, unsigned short groups, long outskip, unsigned char phase) {
+	const unsigned long (*table1)[4][256] = c2p_x2_table + (phase & 1);
+	const unsigned long (*table2)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+    while (groups-- > 0) {
+        unsigned long pdata; // 32 bits of planar pixel data
+        asm volatile (
+            "movem.w    (%[in])+, %%d0-%%d3             \n\t"
+            "addi.w     #1024,%%d1                      \n\t"
+            "addi.w     #2048,%%d2                      \n\t"
+            "addi.w     #3072,%%d3                      \n\t"
+            "move.l     (%[table1],%%d0.w), %[pdata]    \n\t"
+            "or.l       (%[table1],%%d1.w), %[pdata]    \n\t"
+            "or.l       (%[table1],%%d2.w), %[pdata]    \n\t"
+            "or.l       (%[table1],%%d3.w), %[pdata]    \n\t"
+            "movep.l    %[pdata], 0(%[out])             \n\t"
+            "lea        (%[out],%[outskip].l), %[out]   \n\t"
+            "move.l     (%[table2],%%d0.w), %[pdata]    \n\t"
+            "or.l       (%[table2],%%d1.w), %[pdata]    \n\t"
+            "or.l       (%[table2],%%d2.w), %[pdata]    \n\t"
+            "or.l       (%[table2],%%d3.w), %[pdata]    \n\t"
+            "movep.l    %[pdata], 0(%[out])             \n\t"
+            "lea        (%[out],%[outskip].l), %[out]   \n\t"
+            
+            // Outputs
+            : [in] "+a" (in)
+            , [out] "+a" (out)
+            , [pdata] "=d" (pdata)
+            
+            // Inputs
+            : [table1] "a" (table1)
+            , [table2] "a" (table2)
+            , [outskip] "d" (outskip)
+            
+            // Clobbers
+            : "d0", "d1", "d2", "d3"
+        );
+    }
+}
+
+#else
+
+void c2p_w4_2x2_vertical(unsigned char *out, const unsigned short *in, unsigned short groups, long outskip, unsigned char phase) {
+	const unsigned long (*table)[4][256] = c2p_x2_table + (phase & 1);
+	const unsigned long (*other)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+    while (groups-- > 0) {
+        unsigned long pdata1 = 0, pdata2 = 0;
+        for (unsigned short pixel = 0; pixel < 4; pixel++) {
+            unsigned short color = *in++;
+            pdata1 |= *(unsigned long*)(((char *)(*table)[pixel]) + color);
+            pdata2 |= *(unsigned long*)(((char *)(*other)[pixel]) + color);
+        }
+        move_p_ofs(out, pdata1, 0);
+        out += outskip;
+        move_p_ofs(out, pdata2, 0);
+        out += outskip;
+        in += 4;
+    }
+}
+
+#endif

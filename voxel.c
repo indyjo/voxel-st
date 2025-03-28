@@ -54,6 +54,9 @@
 // Draw only every second column?
 #define INTERLACE_COLUMNS 1
 
+// How many horizontally adjacent pixels are interleaved in chunky format
+#define CHUNKS_INTERLEAVED 4
+
 __attribute__((noinline)) static void print(const char *s) {
 	while (*s) {
 		Bconout(_CON, *s);
@@ -355,8 +358,8 @@ typedef struct {
 	unsigned char *fog_table_shifted;
 	/// @brief Position in the terrain to sample next
 	fixp_2in1 sample_uv;
-	/// @brief Pointer to the pixels to draw next
-	unsigned char *pixel;
+	/// @brief Pointer to the pixels to draw next, in chunky format
+	unsigned short *pixel;
 	/// @brief Y value of the pixels to draw next
 	short y;
 } render_state_t;
@@ -372,7 +375,7 @@ typedef struct {
 /// @return The render state with which to initialize the next render.
 static render_state_t render(render_state_t state, short z_begin, short z_end, fixp_2in1 delta_uv, short y_min, unsigned int index_mask, char fog) {
 	fixp_2in1 sample_uv = state.sample_uv;
-	unsigned char * pBlock = state.pixel;
+	unsigned short * pChunky = state.pixel;
 	short y = state.y;
 	short (*y_table_shifted)[HEIGHT_VALUES] = state.y_table_shifted;
 	unsigned char *fog_table_shifted = state.fog_table_shifted;
@@ -395,26 +398,15 @@ static render_state_t render(render_state_t state, short z_begin, short z_end, f
 				// Exit the loop on next iteration.
 				z = 0;
 			}
-			if (!fog) {
-				// Use movep to write 8 pixels at once. Since there is no fog, it is sufficient to fetch this
-				// pixel data once from the table.
-				unsigned int movep_data = get_pdata(sample, 0, 0);
-				do {
-					move_p(pBlock, movep_data);
-					pBlock -= 160*LINES_SKIP;
-					y -= LINES_SKIP;
-				} while (sample_y <= y);
-			} else {
-				// Use movep to write 8 pixels at once. Take pixel data from a table that also contains
-				// a stipple pattern for emulating fog.
-				unsigned int* pdata_entry = pdata_offset(sample, *fog_table_shifted);
-				do {
-					unsigned int movep_data = pdata_entry[y&7];
-					move_p(pBlock, movep_data);
-					pBlock -= 160*LINES_SKIP;
-					y -= LINES_SKIP;
-				} while (sample_y <= y);
+			unsigned short chunky = sample.color << 2;
+			if (fog) {
+				//chunky |= *fog_table_shifted;
 			}
+			do {
+				*pChunky = chunky;
+				pChunky += CHUNKS_INTERLEAVED * LINES_SKIP;
+				y -= LINES_SKIP;
+			} while (sample_y <= y);
 		}
 
 		// Try the next sample.
@@ -427,7 +419,7 @@ finish:
 		.y_table_shifted = y_table_shifted,
 		.fog_table_shifted = fog_table_shifted,
 		.sample_uv = sample_uv,
-		.pixel = pBlock,
+		.pixel = pChunky,
 		.y = y,
 	};
 	return result;
@@ -779,7 +771,7 @@ int mymain(int argc, char **argv) {
 	char fog_enabled = FOG_ENABLED_INITIALLY;
 
 	unsigned long t0 = *_hz_200;
-	unsigned long t_render = 0, t_map = 0;
+	unsigned long t_render = 0, t_map = 0, t_c2p = 0;
 	// If < 0, then auto-hover is inactive
 	fixp desired_height = FIXP(20, 0);
 
@@ -810,13 +802,15 @@ int mymain(int argc, char **argv) {
 		fixp_2in1 player_uv = make_2in1(pos.x, pos.y);
 
 		unsigned long t_render_0 = *_hz_200;
-		set_color(0x030);
-#if INTERLACE_COLUMNS
-		for (unsigned short x = VIEWPORT_MIN + 3 + ((i&1)<<3); x < VIEWPORT_MAX; x += 16) {
-#else
-		for (unsigned short x = VIEWPORT_MIN + 3; x < VIEWPORT_MAX; x += 8) {
-#endif
 
+		// Array of color chunks representing a full column of pixels to convert via c2p.
+		unsigned short chunks[CHUNKS_INTERLEAVED * 200];
+		// ci_idx is the column interleave index. 0 <= ci_idx < CHUNKS_INTERLEAVED
+		unsigned short ci_idx = 0;
+
+		set_color(0x030);
+		for (unsigned short x = VIEWPORT_MIN; x < VIEWPORT_MAX; x += 2) {
+			// Calculate the offset for this column caused by camera tilt
 #ifdef INTERACTIVE
 			int y_offset = ((mouse_y - 100) >> 2) - ((mouse_x - 160) >> 2) * (x-160) / 160;
 			y_offset -= y_offset % LINES_SKIP;
@@ -837,7 +831,7 @@ int mymain(int argc, char **argv) {
 				.fog_table_shifted = fog_table + STEPS_MIN,
 				.sample_uv = sample_uv,
 				.y = view_max[x >> 3] - y_offset,
-				.pixel = pixel_block_address(screen, x, view_max[x >> 3]),
+				.pixel = &chunks[ci_idx],
 			};
 			unsigned int index_mask = 0x7fffe;
 
@@ -860,8 +854,22 @@ int mymain(int argc, char **argv) {
 			state = render(state, STEPS_MIN, FOG_START, delta_uv, y_min, index_mask, 0);
 			state = render(state, FOG_START, STEPS_MAX, delta_uv, y_min, index_mask, fog_enabled);
 #endif
-			state.y += y_offset;
-			patch_sky(screen, x, state.y);
+			while ((char *)state.pixel < (char *)chunks + sizeof(chunks)) {
+				*state.pixel = 15 << 2;
+				state.pixel += 4;
+			}
+			ci_idx = (ci_idx + 1) % CHUNKS_INTERLEAVED;
+			if (ci_idx == 0) {
+				// Last column in pixel group was filled, now draw the column from buffer
+				unsigned long t0 = *_hz_200;
+				short column_height = view_max[x >> 3] + 1 - view_min[x >> 3];
+				unsigned char *pOut = pixel_block_address(screen, x, view_max[x >> 3]);
+				c2p_w4_2x2_vertical(pOut, chunks, column_height/2, -160, view_max[x >> 3]);
+				state.y += y_offset;
+				unsigned long t1 = *_hz_200;
+				t_c2p += t1-t0;
+				//patch_sky(screen, x, state.y);
+			}
 		}
 		set_color(0x700);
 		unsigned long t_render_1 = *_hz_200;
@@ -954,6 +962,8 @@ int mymain(int argc, char **argv) {
 	printnum(t_render * 5 / frames);
 	print("\r\nTime spent rendering map: ");
 	printnum(t_map * 5 / frames);
+	print("\r\nTime spent on C2P conversion: ");
+	printnum(t_c2p * 5 / frames);
 	print("\r\n");
 	uninstall_interrupts();
 	uninstall_joystick_handler();
