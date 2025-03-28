@@ -398,14 +398,14 @@ static render_state_t render(render_state_t state, short z_begin, short z_end, f
 				// Exit the loop on next iteration.
 				z = 0;
 			}
-			unsigned short chunky = sample.color << 2;
+			unsigned short chunky = sample.color << 4;
 			if (fog) {
 				//chunky |= *fog_table_shifted;
 			}
 			do {
 				*pChunky = chunky;
 				pChunky += CHUNKS_INTERLEAVED * LINES_SKIP;
-				y -= LINES_SKIP;
+				y -= 2*LINES_SKIP;
 			} while (sample_y <= y);
 		}
 
@@ -855,7 +855,7 @@ int mymain(int argc, char **argv) {
 			state = render(state, FOG_START, STEPS_MAX, delta_uv, y_min, index_mask, fog_enabled);
 #endif
 			while ((char *)state.pixel < (char *)chunks + sizeof(chunks)) {
-				*state.pixel = 15 << 2;
+				*state.pixel = 15 << 4;
 				state.pixel += 4;
 			}
 			ci_idx = (ci_idx + 1) % CHUNKS_INTERLEAVED;

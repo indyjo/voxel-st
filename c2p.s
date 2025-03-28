@@ -231,7 +231,7 @@ _init_c2p_table:
 	neg.l %d6	| tmp222
 	and.l #268435456,%d6	|, _50
 	or.l %d0,%d6	| _44, _50
-	move.l %d6,1024(%a0)	| _50, MEM[(long unsigned int *)_249 + 1024B]
+	move.l %d6,4(%a0)	| _50, MEM[(long unsigned int *)_249 + 4B]
 | c2p.c:42:                     unsigned char c = ((odd ^ pixel) & 1) ? c2 : c1;
 	move.b %d1,%d0	| odd, tmp226
 	neg.b %d0	| tmp226
@@ -289,7 +289,7 @@ _init_c2p_table:
 	neg.l %d6	| tmp246
 	and.l #67108864,%d6	|, _382
 	or.l %d0,%d6	| _101, _382
-	move.l %d6,2048(%a0)	| _382, MEM[(long unsigned int *)_249 + 2048B]
+	move.l %d6,8(%a0)	| _382, MEM[(long unsigned int *)_249 + 8B]
 | c2p.c:42:                     unsigned char c = ((odd ^ pixel) & 1) ? c2 : c1;
 	move.b %d1,%d0	| odd, tmp250
 	neg.b %d0	| tmp250
@@ -347,7 +347,7 @@ _init_c2p_table:
 	neg.l %d6	| tmp179
 	and.l #16777216,%d6	|, _242
 	or.l %d0,%d6	| _58, _242
-	move.l %d6,3072(%a0)	| _242, MEM[(long unsigned int *)_249 + 3072B]
+	move.l %d6,12(%a0)	| _242, MEM[(long unsigned int *)_249 + 12B]
 	move.b %d1,%d0	| odd, _56
 	addq.b #1,%d0	|, _56
 | c2p.c:36:         for (unsigned char odd = 0; odd < 2; odd++) {
@@ -359,7 +359,7 @@ _init_c2p_table:
 | c2p.c:32:     for (int i=0; i<256; i++) {
 	addq.l #1,%d5	|, i
 | c2p.c:32:     for (int i=0; i<256; i++) {
-	addq.l #4,%a1	|, ivtmp.40
+	lea (16,%a1),%a1	|, ivtmp.40
 	cmp.l #256,%d5	|, i
 	jne .L35		|
 | c2p.c:51: }
@@ -603,107 +603,90 @@ _c2p_x2:
 	move.l %d2,-(%sp)	|,
 	move.l 12(%sp),%a2	| out, out
 	move.l 16(%sp),%a0	| in, in
-	move.l 20(%sp),%d0	| pixels, pixels
-| c2p.c:71:     unsigned long (*table)[4][256] = c2p_x2_table + (odd & 1);
+	move.l 20(%sp),%d2	| pixels, pixels
+| c2p.c:71:     unsigned long (*table)[256][4] = c2p_x2_table + (odd & 1);
 	move.b 27(%sp),%d1	| odd, _6
 	and.b #1,%d1	|, _6
-| c2p.c:71:     unsigned long (*table)[4][256] = c2p_x2_table + (odd & 1);
-	moveq #1,%d2	|,
-	and.l %d2,%d1	|, _1
-	moveq #12,%d2	|,
-	lsl.l %d2,%d1	|, _2
-| c2p.c:71:     unsigned long (*table)[4][256] = c2p_x2_table + (odd & 1);
+| c2p.c:71:     unsigned long (*table)[256][4] = c2p_x2_table + (odd & 1);
+	moveq #1,%d0	|,
+	and.l %d0,%d1	|, _1
+	moveq #12,%d0	|,
+	lsl.l %d0,%d1	|, _2
+| c2p.c:71:     unsigned long (*table)[256][4] = c2p_x2_table + (odd & 1);
 	move.l %d1,%a1	| _2, table
 	add.l #_c2p_x2_table,%a1	|, table
 | c2p.c:72: 	while (pixels > 15) {
-	cmp.w #15,%d0	|, pixels
+	cmp.w #15,%d2	|, pixels
 	jls .L118		|
-	move.w %d0,%d1	|, _113
-	add.w #-16,%d1	|, _113
-	lsr.w #4,%d1	|, _112
-	addq.w #1,%d1	|, _80
-	and.l #65535,%d1	|, _114
-	lsl.l #3,%d1	|, _115
-	add.l %a0,%d1	| in, _101
+	add.w #-16,%d2	|, _113
+	lsr.w #4,%d2	|, _112
+	addq.w #1,%d2	|, _80
+	and.l #65535,%d2	|, _114
+	lsl.l #3,%d2	|, _115
+	add.l %a0,%d2	| in, _101
 .L120:
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	moveq #0,%d0	| _68
-	move.b (%a0),%d0	| MEM[(const unsigned char *)in_92], _68
-	add.l %d0,%d0	| _68, tmp90
-	move.l %d0,%d2	| tmp90, tmp91
-	add.l %d0,%d2	| tmp90, tmp91
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	moveq #0,%d1	| _68
+	move.b (%a0),%d1	| MEM[(const unsigned char *)in_92], _68
+	lsl.l #4,%d1	|, tmp90
 	moveq #0,%d0	| _72
 	move.b 1(%a0),%d0	| MEM[(const unsigned char *)in_92 + 1B], _72
-	add.l #256,%d0	|, tmp93
-	add.l %d0,%d0	| tmp93, tmp94
-	add.l %d0,%d0	| tmp94, tmp95
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	move.l (%a1,%d2.l),%d2	| (*table_16)[0][_68], pdata
-	or.l (%a1,%d0.l),%d2	| (*table_16)[1][_72], pdata
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	moveq #0,%d0	| _77
-	move.b 2(%a0),%d0	| MEM[(const unsigned char *)in_92 + 2B], _77
-	add.l #512,%d0	|, tmp97
-	add.l %d0,%d0	| tmp97, tmp98
-	add.l %d0,%d0	| tmp98, tmp99
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	or.l (%a1,%d0.l),%d2	| (*table_16)[2][_77], pdata
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	moveq #0,%d0	| _82
-	move.b 3(%a0),%d0	| MEM[(const unsigned char *)in_92 + 3B], _82
-	add.l #768,%d0	|, tmp101
-	add.l %d0,%d0	| tmp101, tmp102
-	add.l %d0,%d0	| tmp102, tmp103
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	or.l (%a1,%d0.l),%d2	| (*table_16)[3][_82], pdata_84
+	lsl.l #4,%d0	|, tmp92
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	move.l 4(%a1,%d0.l),%d0	| (*table_16)[_72][1], pdata
+	or.l (%a1,%d1.l),%d0	| (*table_16)[_68][0], pdata
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	moveq #0,%d1	| _77
+	move.b 2(%a0),%d1	| MEM[(const unsigned char *)in_92 + 2B], _77
+	lsl.l #4,%d1	|, tmp96
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	or.l 8(%a1,%d1.l),%d0	| (*table_16)[_77][2], pdata
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	moveq #0,%d1	| _82
+	move.b 3(%a0),%d1	| MEM[(const unsigned char *)in_92 + 3B], _82
+	lsl.l #4,%d1	|, tmp100
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	or.l 12(%a1,%d1.l),%d0	| (*table_16)[_82][3], pdata_84
 | c2p.c:4: 	asm ("movep.l %0, %c2(%1)" : : "d" (data), "a" (p), "i" (ofs));
 #APP
 | 4 "c2p.c" 1
-	movep.l %d2, 0(%a2)	| pdata_84,, out
+	movep.l %d0, 0(%a2)	| pdata_84,, out
 | 0 "" 2
-| c2p.c:78: 				pdata |= (*table)[i][color];
+| c2p.c:78: 				pdata |= (*table)[color][i];
 #NO_APP
-	moveq #0,%d0	| _94
-	move.b 4(%a0),%d0	| MEM[(const unsigned char *)in_92 + 4B], _94
-	add.l %d0,%d0	| _94, tmp106
-	move.l %d0,%d2	| tmp106, tmp107
-	add.l %d0,%d2	| tmp106, tmp107
+	moveq #0,%d1	| _94
+	move.b 4(%a0),%d1	| MEM[(const unsigned char *)in_92 + 4B], _94
+	lsl.l #4,%d1	|, tmp105
 	moveq #0,%d0	| _98
 	move.b 5(%a0),%d0	| MEM[(const unsigned char *)in_92 + 5B], _98
-	add.l #256,%d0	|, tmp109
-	add.l %d0,%d0	| tmp109, tmp110
-	add.l %d0,%d0	| tmp110, tmp111
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	move.l (%a1,%d2.l),%d2	| (*table_16)[0][_94], pdata
-	or.l (%a1,%d0.l),%d2	| (*table_16)[1][_98], pdata
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	moveq #0,%d0	| _103
-	move.b 6(%a0),%d0	| MEM[(const unsigned char *)in_92 + 6B], _103
-	add.l #512,%d0	|, tmp113
-	add.l %d0,%d0	| tmp113, tmp114
-	add.l %d0,%d0	| tmp114, tmp115
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	or.l (%a1,%d0.l),%d2	| (*table_16)[2][_103], pdata
+	lsl.l #4,%d0	|, tmp107
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	move.l 4(%a1,%d0.l),%d0	| (*table_16)[_98][1], pdata
+	or.l (%a1,%d1.l),%d0	| (*table_16)[_94][0], pdata
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	moveq #0,%d1	| _103
+	move.b 6(%a0),%d1	| MEM[(const unsigned char *)in_92 + 6B], _103
+	lsl.l #4,%d1	|, tmp111
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	or.l 8(%a1,%d1.l),%d0	| (*table_16)[_103][2], pdata
 | c2p.c:77:                 unsigned char color = *in++;
 	addq.l #8,%a0	|, in
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	moveq #0,%d0	| _108
-	move.b -1(%a0),%d0	| MEM[(const unsigned char *)in_106 + 4294967295B], _108
-	add.l #768,%d0	|, tmp117
-	add.l %d0,%d0	| tmp117, tmp118
-	add.l %d0,%d0	| tmp118, tmp119
-| c2p.c:78: 				pdata |= (*table)[i][color];
-	or.l (%a1,%d0.l),%d2	| (*table_16)[3][_108], pdata_110
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	moveq #0,%d1	| _108
+	move.b -1(%a0),%d1	| MEM[(const unsigned char *)in_106 + 4294967295B], _108
+	lsl.l #4,%d1	|, tmp115
+| c2p.c:78: 				pdata |= (*table)[color][i];
+	or.l 12(%a1,%d1.l),%d0	| (*table_16)[_108][3], pdata_110
 | c2p.c:4: 	asm ("movep.l %0, %c2(%1)" : : "d" (data), "a" (p), "i" (ofs));
 #APP
 | 4 "c2p.c" 1
-	movep.l %d2, 1(%a2)	| pdata_110,, out
+	movep.l %d0, 1(%a2)	| pdata_110,, out
 | 0 "" 2
 | c2p.c:83: 		out += 8;
 #NO_APP
 	addq.l #8,%a2	|, out
 | c2p.c:72: 	while (pixels > 15) {
-	cmp.l %d1,%a0	| _101, in
+	cmp.l %d2,%a0	| _101, in
 	jne .L120		|
 .L118:
 | c2p.c:85: }
@@ -948,21 +931,21 @@ _c2p_w4_2x2_vertical:
 	move.l 36(%sp),%a0	| in, in
 	move.l 44(%sp),%d4	| outskip, outskip
 	move.l 48(%sp),%d0	| phase, phase
-| c2p.c:113: 	const unsigned long (*table1)[4][256] = c2p_x2_table + (phase & 1);
+| c2p.c:113: 	const unsigned long (*table1)[256][4] = c2p_x2_table + (phase & 1);
 	moveq #1,%d1	|, _1
 	and.l %d0,%d1	| phase, _1
 	moveq #12,%d2	|,
 	lsl.l %d2,%d1	|, _2
-| c2p.c:113: 	const unsigned long (*table1)[4][256] = c2p_x2_table + (phase & 1);
+| c2p.c:113: 	const unsigned long (*table1)[256][4] = c2p_x2_table + (phase & 1);
 	move.l %d1,%a3	| _2, table1
 	add.l #_c2p_x2_table,%a3	|, table1
-| c2p.c:114: 	const unsigned long (*table2)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+| c2p.c:114: 	const unsigned long (*table2)[256][4] = c2p_x2_table + ((phase + 1) & 1);
 	addq.l #1,%d0	|, _4
-| c2p.c:114: 	const unsigned long (*table2)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+| c2p.c:114: 	const unsigned long (*table2)[256][4] = c2p_x2_table + ((phase + 1) & 1);
 	moveq #1,%d1	|,
 	and.l %d1,%d0	|, _23
 	lsl.l %d2,%d0	|, _6
-| c2p.c:114: 	const unsigned long (*table2)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+| c2p.c:114: 	const unsigned long (*table2)[256][4] = c2p_x2_table + ((phase + 1) & 1);
 	move.l %d0,%a2	| _6, table2
 	add.l #_c2p_x2_table,%a2	|, table2
 | c2p.c:115:     while (groups-- > 0) {
@@ -976,19 +959,16 @@ _c2p_w4_2x2_vertical:
 #APP
 | 117 "c2p.c" 1
 	movem.w    (%a0)+, %d0-%d3             	| in
-	addi.w     #1024,%d1                      
-	addi.w     #2048,%d2                      
-	addi.w     #3072,%d3                      
 	move.l     (%a3,%d0.w), %d6    	| table1, pdata
-	or.l       (%a3,%d1.w), %d6    	| table1, pdata
-	or.l       (%a3,%d2.w), %d6    	| table1, pdata
-	or.l       (%a3,%d3.w), %d6    	| table1, pdata
+	or.l       4(%a3,%d1.w), %d6   	| table1, pdata
+	or.l       8(%a3,%d2.w), %d6   	| table1, pdata
+	or.l       12(%a3,%d3.w), %d6  	| table1, pdata
 	movep.l    %d6, 0(%a1)             	| pdata, out
 	lea        (%a1,%d4.l), %a1   	| out, outskip
 	move.l     (%a2,%d0.w), %d6    	| table2, pdata
-	or.l       (%a2,%d1.w), %d6    	| table2, pdata
-	or.l       (%a2,%d2.w), %d6    	| table2, pdata
-	or.l       (%a2,%d3.w), %d6    	| table2, pdata
+	or.l       4(%a2,%d1.w), %d6   	| table2, pdata
+	or.l       8(%a2,%d2.w), %d6   	| table2, pdata
+	or.l       12(%a2,%d3.w), %d6  	| table2, pdata
 	movep.l    %d6, 0(%a1)             	| pdata, out
 	lea        (%a1,%d4.l), %a1   	| out, outskip
 	
@@ -997,7 +977,7 @@ _c2p_w4_2x2_vertical:
 #NO_APP
 	dbra %d5,.L135	| groups,
 .L133:
-| c2p.c:149: }
+| c2p.c:151: }
 	movem.l (%sp)+,%d2-%d6/%a2-%a3	|
 	rts	
 	.bss

@@ -6,8 +6,8 @@ static void move_p_ofs(unsigned char *p, unsigned int data, unsigned char ofs) {
 
 static unsigned long c2p_table[2][256];
 
-// [even/odd][pixel 0...3][color]
-static unsigned long c2p_x2_table[2][4][256];
+// [even/odd][color][pixel 0...3]
+static unsigned long c2p_x2_table[2][256][4];
 
 void init_c2p_table() {
 	for (int i=0; i<256; i++) {
@@ -44,7 +44,7 @@ void init_c2p_table() {
                         pdata |= (1 << (8*bitplane)) << (7-pixel);
                     }
                 }
-                if ((pixel & 1) == 1) c2p_x2_table[odd][inpixel][i] = pdata;
+                if ((pixel & 1) == 1) c2p_x2_table[odd][i][inpixel] = pdata;
             }
         }
 	}
@@ -68,14 +68,14 @@ void c2p(unsigned char *out, const unsigned char *in, unsigned short pixels, uns
 }
 
 void c2p_x2(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned char odd) {
-    unsigned long (*table)[4][256] = c2p_x2_table + (odd & 1);
+    unsigned long (*table)[256][4] = c2p_x2_table + (odd & 1);
 	while (pixels > 15) {
 		unsigned int pdata; // 8 pixel data for use with movep
 		for (int j=0; j<2; j++) {
 			pdata = 0;
 			for(int i=0; i<4; i++) {
                 unsigned char color = *in++;
-				pdata |= (*table)[i][color];
+				pdata |= (*table)[color][i];
 			}
 			move_p_ofs(out, pdata, j);
 		}
@@ -110,25 +110,27 @@ void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels
 #if ASSEMBLER
 
 void c2p_w4_2x2_vertical(unsigned char *out, const unsigned short *in, unsigned short groups, long outskip, unsigned char phase) {
-	const unsigned long (*table1)[4][256] = c2p_x2_table + (phase & 1);
-	const unsigned long (*table2)[4][256] = c2p_x2_table + ((phase + 1) & 1);
+	const unsigned long (*table1)[256][4] = c2p_x2_table + (phase & 1);
+	const unsigned long (*table2)[256][4] = c2p_x2_table + ((phase + 1) & 1);
     while (groups-- > 0) {
         unsigned long pdata; // 32 bits of planar pixel data
         asm volatile (
+            // Read four consecutive pixels from buffer, each stored in a word
             "movem.w    (%[in])+, %%d0-%%d3             \n\t"
-            "addi.w     #1024,%%d1                      \n\t"
-            "addi.w     #2048,%%d2                      \n\t"
-            "addi.w     #3072,%%d3                      \n\t"
+
+            // Write 8 planar pixels (even line)
             "move.l     (%[table1],%%d0.w), %[pdata]    \n\t"
-            "or.l       (%[table1],%%d1.w), %[pdata]    \n\t"
-            "or.l       (%[table1],%%d2.w), %[pdata]    \n\t"
-            "or.l       (%[table1],%%d3.w), %[pdata]    \n\t"
+            "or.l       4(%[table1],%%d1.w), %[pdata]   \n\t"
+            "or.l       8(%[table1],%%d2.w), %[pdata]   \n\t"
+            "or.l       12(%[table1],%%d3.w), %[pdata]  \n\t"
             "movep.l    %[pdata], 0(%[out])             \n\t"
             "lea        (%[out],%[outskip].l), %[out]   \n\t"
+
+            // Write 8 planar pixels (odd line)
             "move.l     (%[table2],%%d0.w), %[pdata]    \n\t"
-            "or.l       (%[table2],%%d1.w), %[pdata]    \n\t"
-            "or.l       (%[table2],%%d2.w), %[pdata]    \n\t"
-            "or.l       (%[table2],%%d3.w), %[pdata]    \n\t"
+            "or.l       4(%[table2],%%d1.w), %[pdata]   \n\t"
+            "or.l       8(%[table2],%%d2.w), %[pdata]   \n\t"
+            "or.l       12(%[table2],%%d3.w), %[pdata]  \n\t"
             "movep.l    %[pdata], 0(%[out])             \n\t"
             "lea        (%[out],%[outskip].l), %[out]   \n\t"
             
