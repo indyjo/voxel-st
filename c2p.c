@@ -6,8 +6,8 @@ static void move_p_ofs(unsigned char *p, unsigned int data, unsigned char ofs) {
 
 static unsigned long c2p_table[2][256];
 
-// [even/odd][color][pixel 0...3]
-static unsigned long c2p_x2_table[2][256][4];
+// [line 0..3][fog 0..8][color][pixel 0...3]
+static unsigned long c2p_x2_table[4][8][256][4];
 
 void init_c2p_table() {
 	for (int i=0; i<256; i++) {
@@ -29,22 +29,38 @@ void init_c2p_table() {
 		c2p_table[1][i] = pdata;
 	}
 
+	char bayer[4][4] = {
+		{0,  8, 2,10},
+		{12, 4,14, 6},
+		{ 3,11, 1, 9},
+		{15, 7,13, 5}
+	};
     for (int i=0; i<256; i++) {
         unsigned char c1 = i & 0xf;
         unsigned char c2 = (i & 0xf) + (i >> 4);
-	    
-        for (unsigned char odd = 0; odd < 2; odd++) {
-            unsigned int pdata;
-            for (unsigned char pixel = 0; pixel < 8; pixel++) {
-                unsigned char inpixel = pixel >> 1;
-                if ((pixel & 1) == 0) pdata = 0;
-                for (unsigned char bitplane = 0; bitplane < 4; bitplane++) {
-                    unsigned char c = ((odd ^ pixel) & 1) ? c2 : c1;
-                    if (c & (1 << (3-bitplane))) {
-                        pdata |= (1 << (8*bitplane)) << (7-pixel);
+
+	    for (char fog = 0; fog < 8; fog++) {
+            for (unsigned char line = 0; line < 4; line++) {
+                unsigned int pdata;
+                for (unsigned char pixel = 0; pixel < 8; pixel++) {
+                    unsigned char inpixel = pixel >> 1;
+                    if ((pixel & 1) == 0) pdata = 0;
+                    char bayer_weight = bayer[line][pixel % 4];
+                    unsigned char c;
+                    if (bayer_weight < 2*fog) {
+                        c = 15; // fog color
+                    }  else if (bayer_weight - 2*fog < 8) {
+                        c = c1;
+                    } else {
+                        c = c2;
                     }
+                    for (unsigned char bitplane = 0; bitplane < 4; bitplane++) {
+                        if (c & (1 << (3-bitplane))) {
+                            pdata |= (1 << (8*bitplane)) << (7-pixel);
+                        }
+                    }
+                    if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
                 }
-                if ((pixel & 1) == 1) c2p_x2_table[odd][i][inpixel] = pdata;
             }
         }
 	}
@@ -68,14 +84,14 @@ void c2p(unsigned char *out, const unsigned char *in, unsigned short pixels, uns
 }
 
 void c2p_x2(unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned char odd) {
-    unsigned long (*table)[256][4] = c2p_x2_table + (odd & 1);
+    unsigned long (*table)[8][256][4] = c2p_x2_table + (odd & 1);
 	while (pixels > 15) {
 		unsigned int pdata; // 8 pixel data for use with movep
 		for (int j=0; j<2; j++) {
 			pdata = 0;
 			for(int i=0; i<4; i++) {
                 unsigned char color = *in++;
-				pdata |= (*table)[color][i];
+				pdata |= (*table)[0][color][i];
 			}
 			move_p_ofs(out, pdata, j);
 		}
@@ -110,9 +126,12 @@ void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels
 #if ASSEMBLER
 
 void c2p_w4_2x2_vertical(unsigned char *out, const unsigned short *in, unsigned short groups, long outskip, unsigned char phase) {
-	const unsigned long (*table1)[256][4] = c2p_x2_table + (phase & 1);
-	const unsigned long (*table2)[256][4] = c2p_x2_table + ((phase + 1) & 1);
+    phase &= 3;
     while (groups-- > 0) {
+        const unsigned long (*table1)[8][256][4] = c2p_x2_table + phase;
+        phase = (phase + 1) & 3;
+        const unsigned long (*table2)[8][256][4] = c2p_x2_table + phase;
+        phase = (phase + 1) & 3;
         unsigned long pdata; // 32 bits of planar pixel data
         asm volatile (
             // Read four consecutive pixels from buffer, each stored in a word

@@ -113,7 +113,7 @@ signed short y_table[STEPS_MAX][HEIGHT_VALUES];
 unsigned int pdata_table[256][FOG_STEPS][8];
 
 // Maps step index to (preshifted) fog.
-unsigned char fog_table[STEPS_MAX];
+unsigned short fog_table[STEPS_MAX];
 
 // In order to save us from overwriting blue sky with blue sky, we save the horizon's y coordinate of every column;
 signed short horizon[320];
@@ -214,9 +214,9 @@ __attribute__((noinline)) static void build_tables() {
 	fixp step = FIXP(1,0);
 	for (int z=1; z<STEPS_MAX; z++) {
 		for (int h=0; h<256+256; h++) {
-			y_table[z][h] = 45 - 70 * (h - 256) / fixp_int(dist);
+			y_table[z][h] = 45 - 35 * (h - 256) / fixp_int(dist);
 #ifdef CURVED_TERRAIN
-			y_table[z][h] += 70 * fixp_int(dist) / 400;
+			y_table[z][h] += 35 * fixp_int(dist) / 400;
 #endif
 		}
 		dist += step;
@@ -227,7 +227,7 @@ __attribute__((noinline)) static void build_tables() {
 		int rel_dist = z - FOG_START;
 		if (rel_dist < 0) rel_dist = 0;
 		int max_dist = STEPS_MAX - FOG_START;
-		fog_table[z] = (255 * rel_dist / max_dist) & FOG_MASK;
+		fog_table[z] = (FOG_STEPS * rel_dist / max_dist) << 12;
 	}
 
 	max_height = 0;
@@ -355,7 +355,7 @@ typedef struct {
 	/// @brief Pointer to y values corresponding to heights wrt observer height and current z.
 	short (*y_table_shifted)[HEIGHT_VALUES];
 	/// @brief Pointer to pre-shifted fog value corresponding to current z.
-	unsigned char *fog_table_shifted;
+	unsigned short *fog_table_shifted;
 	/// @brief Position in the terrain to sample next
 	fixp_2in1 sample_uv;
 	/// @brief Pointer to the pixels to draw next, in chunky format
@@ -378,7 +378,7 @@ static render_state_t render(render_state_t state, short z_begin, short z_end, f
 	unsigned short * pChunky = state.pixel;
 	short y = state.y;
 	short (*y_table_shifted)[HEIGHT_VALUES] = state.y_table_shifted;
-	unsigned char *fog_table_shifted = state.fog_table_shifted;
+	unsigned short *fog_table_shifted = state.fog_table_shifted;
 
 	// Skip the loop if the column is already filled.
 	if (y < y_min) goto finish;
@@ -400,7 +400,7 @@ static render_state_t render(render_state_t state, short z_begin, short z_end, f
 			}
 			unsigned short chunky = sample.color << 4;
 			if (fog) {
-				//chunky |= *fog_table_shifted;
+				chunky |= *fog_table_shifted;
 			}
 			do {
 				*pChunky = chunky;
@@ -818,8 +818,8 @@ int mymain(int argc, char **argv) {
 			int y_offset = 0;
 #endif
 			fixp_2in1 delta_uv = make_2in1(
-				pos.dirx - ((short)(x - 160) * pos.diry >> 8),
-				pos.diry + ((short)(x - 160) * pos.dirx >> 8));
+				pos.dirx - ((short)(x - 160) * pos.diry >> 7),
+				pos.diry + ((short)(x - 160) * pos.dirx >> 7));
 			
 			fixp_2in1 sample_uv = player_uv;
 			for (int i=0; i<STEPS_MIN; i++) {
