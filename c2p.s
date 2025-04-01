@@ -8,14 +8,14 @@
 _init_c2p_table:
 	lea (-24,%sp),%sp	|,
 	movem.l %d2-%d7/%a2-%a6,-(%sp)	|
-	lea _c2p_table,%a0	|, ivtmp.86
+	lea _c2p_table,%a0	|, ivtmp.85
 | c2p.c:12: void init_c2p_table() {
-	moveq #0,%d1	| ivtmp.84
+	moveq #0,%d1	| ivtmp.83
 | c2p.c:13: 	for (int i=0; i<256; i++) {
 	moveq #0,%d0	| i
 .L7:
 | c2p.c:15: 		if (i & 1) pdata |= 0x01000000;
-	move.l %d1,%d2	| ivtmp.84, _229
+	move.l %d1,%d2	| ivtmp.83, _229
 	and.l #16777216,%d2	|, _229
 | c2p.c:16: 		if (i & 2) pdata |= 0x00010000;
 	btst #1,%d0	|, i
@@ -37,7 +37,7 @@ _init_c2p_table:
 | c2p.c:13: 	for (int i=0; i<256; i++) {
 	addq.l #1,%d0	|, i
 | c2p.c:13: 	for (int i=0; i<256; i++) {
-	add.l #16777216,%d1	|, ivtmp.84
+	add.l #16777216,%d1	|, ivtmp.83
 	jra .L7		|
 .L3:
 | c2p.c:18: 		if (i & 8) pdata |= 0x00000001;
@@ -50,7 +50,7 @@ _init_c2p_table:
 | c2p.c:13: 	for (int i=0; i<256; i++) {
 	addq.l #1,%d0	|, i
 | c2p.c:13: 	for (int i=0; i<256; i++) {
-	add.l #16777216,%d1	|, ivtmp.84
+	add.l #16777216,%d1	|, ivtmp.83
 	jra .L7		|
 .L4:
 | c2p.c:18: 		if (i & 8) pdata |= 0x00000001;
@@ -59,10 +59,10 @@ _init_c2p_table:
 | c2p.c:13: 	for (int i=0; i<256; i++) {
 	addq.l #1,%d0	|, i
 | c2p.c:13: 	for (int i=0; i<256; i++) {
-	add.l #16777216,%d1	|, ivtmp.84
+	add.l #16777216,%d1	|, ivtmp.83
 	cmp.l #256,%d0	|, i
 	jne .L7		|
-	lea _c2p_table+1024,%a0	|, ivtmp.77
+	lea _c2p_table+1024,%a0	|, ivtmp.76
 | c2p.c:22: 	for (int i=0; i<256; i++) {
 	moveq #0,%d2	| i
 .L11:
@@ -123,19 +123,19 @@ _init_c2p_table:
 	asr.l #4,%d3	|, _10
 | c2p.c:40:         unsigned char c2 = (i & 0xf) + (i >> 4);
 	add.b %d4,%d3	| c1, c2
-	move.l 48(%sp),%d7	| %sfp, ivtmp.61
-	moveq #0,%d0	| ivtmp.60
+	move.l 48(%sp),%d7	| %sfp, ivtmp.60
+	moveq #0,%d0	| ivtmp.59
 .L12:
-	lea (52,%sp),%a2	|,, ivtmp.51
+	lea (52,%sp),%a2	|,, ivtmp.50
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	move.l %d7,%a4	| ivtmp.61, ivtmp.52
+	move.l %d7,%a4	| ivtmp.60, ivtmp.51
 .L81:
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
 	move.b (%a2),%d1	| MEM[(char *)_103],
 	ext.w %d1	| MEM[(char *)_103]
 	move.w %d1,%a1	| MEM[(char *)_103], _88
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a1	| ivtmp.60, _88
+	cmp.l %d0,%a1	| ivtmp.59, _88
 	jge .L180		|
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
 	move.l #8421504,%d1	|, pdata
@@ -146,7 +146,7 @@ _init_c2p_table:
 	ext.w %d2	| MEM[(char *)_103 + 1B]
 	move.w %d2,%a0	| MEM[(char *)_103 + 1B], _242
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a0	| ivtmp.60, _242
+	cmp.l %d0,%a0	| ivtmp.59, _242
 	jge .L181		|
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
 	or.l #4210752,%d1	|, pdata
@@ -159,7 +159,7 @@ _init_c2p_table:
 	ext.w %d1	| MEM[(char *)_103 + 2B]
 	move.w %d1,%a5	| MEM[(char *)_103 + 2B], _275
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a5	| ivtmp.60, _275
+	cmp.l %d0,%a5	| ivtmp.59, _275
 	jge .L182		|
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
 	move.l #2105376,%d2	|, pdata
@@ -170,7 +170,7 @@ _init_c2p_table:
 	ext.w %d1	| MEM[(char *)_103 + 3B]
 	move.w %d1,%a3	| MEM[(char *)_103 + 3B], _331
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a3	| ivtmp.60, _331
+	cmp.l %d0,%a3	| ivtmp.59, _331
 	jge .L183		|
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
 	or.l #1052688,%d2	|, pdata
@@ -179,7 +179,7 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d2,4(%a4)	| pdata, MEM[(long unsigned int *)_32 + 4B]
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a1	| ivtmp.60, _88
+	cmp.l %d0,%a1	| ivtmp.59, _88
 	jge .L184		|
 .L92:
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
@@ -187,7 +187,7 @@ _init_c2p_table:
 .L54:
 	bset #27,%d2	|, pdata
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a0	| ivtmp.60, _242
+	cmp.l %d0,%a0	| ivtmp.59, _242
 	jge .L185		|
 .L61:
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
@@ -197,7 +197,7 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d2,8(%a4)	| pdata, MEM[(long unsigned int *)_32 + 8B]
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a5	| ivtmp.60, _275
+	cmp.l %d0,%a5	| ivtmp.59, _275
 	jge .L186		|
 .L95:
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
@@ -205,7 +205,7 @@ _init_c2p_table:
 	bset #25,%d1	|, pdata
 .L77:
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a3	| ivtmp.60, _331
+	cmp.l %d0,%a3	| ivtmp.59, _331
 	jge .L187		|
 | c2p.c:59:                             pdata |= (1 << (8*bitplane)) << (7-pixel);
 	or.l #65793,%d1	|, pdata
@@ -214,16 +214,16 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d1,12(%a4)	| pdata, MEM[(long unsigned int *)_32 + 12B]
 | c2p.c:43:             for (unsigned char line = 0; line < 4; line++) {
-	addq.l #4,%a2	|, ivtmp.51
-	add.l #32768,%a4	|, ivtmp.52
-	cmp.l %a6,%a2	| _74, ivtmp.51
+	addq.l #4,%a2	|, ivtmp.50
+	add.l #32768,%a4	|, ivtmp.51
+	cmp.l %a6,%a2	| _74, ivtmp.50
 	jne .L81		|
 .L19:
 | c2p.c:42: 	    for (char fog = 0; fog < 8; fog++) {
-	addq.l #2,%d0	|, ivtmp.60
-	add.l #4096,%d7	|, ivtmp.61
+	addq.l #2,%d0	|, ivtmp.59
+	add.l #4096,%d7	|, ivtmp.60
 	moveq #16,%d1	|,
-	cmp.l %d0,%d1	| ivtmp.60,
+	cmp.l %d0,%d1	| ivtmp.59,
 	jne .L12		|
 | c2p.c:38:     for (int i=0; i<256; i++) {
 	addq.l #1,44(%sp)	|, %sfp
@@ -238,7 +238,7 @@ _init_c2p_table:
 	rts	
 .L187:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
-	sub.l %d0,%a3	| ivtmp.60, _17
+	sub.l %d0,%a3	| ivtmp.59, _17
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d2	|,
 	cmp.l %a3,%d2	| _17,
@@ -267,15 +267,15 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d1,12(%a4)	| pdata, MEM[(long unsigned int *)_32 + 12B]
 | c2p.c:43:             for (unsigned char line = 0; line < 4; line++) {
-	addq.l #4,%a2	|, ivtmp.51
-	add.l #32768,%a4	|, ivtmp.52
-	cmp.l %a6,%a2	| _74, ivtmp.51
+	addq.l #4,%a2	|, ivtmp.50
+	add.l #32768,%a4	|, ivtmp.51
+	cmp.l %a6,%a2	| _74, ivtmp.50
 	jne .L81		|
 	jra .L19		|
 .L183:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	move.l %a3,%d1	| _331, _340
-	sub.l %d0,%d1	| ivtmp.60, _340
+	sub.l %d0,%d1	| ivtmp.59, _340
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d5	|,
 	cmp.l %d1,%d5	| _340,
@@ -304,11 +304,11 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d2,4(%a4)	| pdata, MEM[(long unsigned int *)_32 + 4B]
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a1	| ivtmp.60, _88
+	cmp.l %d0,%a1	| ivtmp.59, _88
 	jlt .L92		|
 .L184:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
-	sub.l %d0,%a1	| ivtmp.60, _396
+	sub.l %d0,%a1	| ivtmp.59, _396
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d1	|,
 	cmp.l %a1,%d1	| _396,
@@ -337,11 +337,11 @@ _init_c2p_table:
 	tst.b %d5	| _402
 	jne .L54		|
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a0	| ivtmp.60, _242
+	cmp.l %d0,%a0	| ivtmp.59, _242
 	jlt .L61		|
 .L185:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
-	sub.l %d0,%a0	| ivtmp.60, _452
+	sub.l %d0,%a0	| ivtmp.59, _452
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d1	|,
 	cmp.l %a0,%d1	| _452,
@@ -370,12 +370,12 @@ _init_c2p_table:
 | c2p.c:62:                     if ((pixel & 1) == 1) c2p_x2_table[line][fog][i][inpixel] = pdata;
 	move.l %d2,8(%a4)	| pdata, MEM[(long unsigned int *)_32 + 8B]
 | c2p.c:50:                     if (bayer_weight < 2*fog) {
-	cmp.l %d0,%a5	| ivtmp.60, _275
+	cmp.l %d0,%a5	| ivtmp.59, _275
 	jlt .L95		|
 .L186:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	move.l %a5,%d1	| _275, _508
-	sub.l %d0,%d1	| ivtmp.60, _508
+	sub.l %d0,%d1	| ivtmp.59, _508
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d2	|,
 	cmp.l %d1,%d2	| _508,
@@ -409,7 +409,7 @@ _init_c2p_table:
 .L182:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	move.l %a5,%d1	| _275, _284
-	sub.l %d0,%d1	| ivtmp.60, _284
+	sub.l %d0,%d1	| ivtmp.59, _284
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d2	|,
 	cmp.l %d1,%d2	| _284,
@@ -443,7 +443,7 @@ _init_c2p_table:
 .L181:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	move.l %a0,%d2	| _242, _18
-	sub.l %d0,%d2	| ivtmp.60, _18
+	sub.l %d0,%d2	| ivtmp.59, _18
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d5	|,
 	cmp.l %d2,%d5	| _18,
@@ -475,7 +475,7 @@ _init_c2p_table:
 .L180:
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	move.l %a1,%d1	| _88, _91
-	sub.l %d0,%d1	| ivtmp.60, _91
+	sub.l %d0,%d1	| ivtmp.59, _91
 | c2p.c:52:                     }  else if (bayer_weight - 2*fog < 8) {
 	moveq #7,%d2	|,
 	cmp.l %d1,%d2	| _91,
@@ -1231,70 +1231,98 @@ _c2p_skip:
 	.even
 	.globl	_c2p_w4_2x2_vertical
 _c2p_w4_2x2_vertical:
-	movem.l %d2-%d7/%a2-%a3,-(%sp)	|
-	move.l 36(%sp),%a2	| out, out
-	move.l 40(%sp),%a1	| in, in
-	move.l 48(%sp),%d6	| outskip, outskip
-| c2p.c:129:     phase &= 3;
-	move.b 55(%sp),%d7	| phase, phase
-	and.b #3,%d7	|, phase
-| c2p.c:130:     while (groups-- > 0) {
-	move.w 46(%sp),%d5	| groups, groups
-	subq.w #1,%d5	|, groups
-| c2p.c:130:     while (groups-- > 0) {
-	tst.w 46(%sp)	| groups
+	movem.l %d2-%d7/%a2-%a5,-(%sp)	|
+	move.l 52(%sp),%d4	| groups, groups
+	move.l 60(%sp),%d0	| phase, phase
+| c2p.c:129:     if (groups == 0) {
+	tst.w %d4	| groups
 	jeq .L214		|
-.L216:
-| c2p.c:131:         const unsigned long (*table1)[8][256][4] = c2p_x2_table + phase;
-	moveq #3,%d4	|, _1
-	and.l %d7,%d4	| phase, _1
-	moveq #15,%d0	|,
-	lsl.l %d0,%d4	|, _2
-| c2p.c:131:         const unsigned long (*table1)[8][256][4] = c2p_x2_table + phase;
-	add.l #_c2p_x2_table,%d4	|, table1
-| c2p.c:132:         phase = (phase + 1) & 3;
-	move.b %d7,%d0	| phase, _3
-	addq.b #1,%d0	|, _3
-| c2p.c:132:         phase = (phase + 1) & 3;
-	and.b #3,%d0	|, phase
-| c2p.c:134:         phase = (phase + 1) & 3;
-	move.b %d0,%d7	| phase, _6
-	addq.b #1,%d7	|, _6
-| c2p.c:134:         phase = (phase + 1) & 3;
-	and.b #3,%d7	|, phase
-| c2p.c:133:         const unsigned long (*table2)[8][256][4] = c2p_x2_table + phase;
-	moveq #3,%d1	|,
-	and.l %d1,%d0	|, _4
-	moveq #15,%d1	|,
-	lsl.l %d1,%d0	|, _5
-| c2p.c:133:         const unsigned long (*table2)[8][256][4] = c2p_x2_table + phase;
-	move.l %d0,%a0	| _5, table2_20
-	add.l #_c2p_x2_table,%a0	|, table2_20
-| c2p.c:136:         asm volatile (
-	move.l %d4,%a3	| table1,
+| c2p.c:132:     if (groups & 1) {
+	move.w %d4,%d1	|, _29
+	and.w #1,%d1	|, _29
+	add.b %d1,%d1	| _29, _35
+	add.b %d0,%d1	| phase, _36
+| c2p.c:137:     const PDataTable *table2 = c2p_x2_table + ((phase + 1) & 3);
+	moveq #0,%d0	| _3
+	move.b %d1,%d0	| _36, _3
+| c2p.c:136:     const PDataTable *table1 = c2p_x2_table + (phase & 3);
+	moveq #3,%d2	|,
+	and.l %d2,%d1	|, _1
+	moveq #15,%d7	|,
+	lsl.l %d7,%d1	|, _2
+| c2p.c:136:     const PDataTable *table1 = c2p_x2_table + (phase & 3);
+	move.l %d1,%a0	| _2, table1_17
+	add.l #_c2p_x2_table,%a0	|, table1_17
+| c2p.c:137:     const PDataTable *table2 = c2p_x2_table + ((phase + 1) & 3);
+	move.l %d0,%d5	| _3, _4
+	addq.l #1,%d5	|, _4
+| c2p.c:137:     const PDataTable *table2 = c2p_x2_table + ((phase + 1) & 3);
+	and.l %d2,%d5	|, _31
+	lsl.l %d7,%d5	|, _6
+| c2p.c:137:     const PDataTable *table2 = c2p_x2_table + ((phase + 1) & 3);
+	add.l #_c2p_x2_table,%d5	|, table2_18
+| c2p.c:138:     const PDataTable *table3 = c2p_x2_table + ((phase + 2) & 3);
+	move.l %d0,%d6	| _3, _7
+	addq.l #2,%d6	|, _7
+| c2p.c:138:     const PDataTable *table3 = c2p_x2_table + ((phase + 2) & 3);
+	and.l %d2,%d6	|, _32
+	lsl.l %d7,%d6	|, _9
+| c2p.c:138:     const PDataTable *table3 = c2p_x2_table + ((phase + 2) & 3);
+	add.l #_c2p_x2_table,%d6	|, table3_19
+| c2p.c:139:     const PDataTable *table4 = c2p_x2_table + ((phase + 3) & 3);
+	addq.l #3,%d0	|, _10
+| c2p.c:139:     const PDataTable *table4 = c2p_x2_table + ((phase + 3) & 3);
+	and.l %d2,%d0	|, _33
+	lsl.l %d7,%d0	|, _12
+| c2p.c:139:     const PDataTable *table4 = c2p_x2_table + ((phase + 3) & 3);
+	move.l %d0,%a1	| _12, table4_20
+	add.l #_c2p_x2_table,%a1	|, table4_20
+| c2p.c:142:     asm volatile (
+	move.l 48(%sp),%a2	| in, in
+	move.l 44(%sp),%a3	| out, out
+	move.l %d5,%a4	| table2_18,
+	move.l %d6,%a5	| table3_19,
+	move.l 56(%sp),%d7	| outskip,
 #APP
-| 136 "c2p.c" 1
-	movem.w    (%a1)+, %d0-%d3             	| in
-	move.l     (%a3,%d0.w), %d4    	|, pdata
-	or.l       4(%a3,%d1.w), %d4   	|, pdata
-	or.l       8(%a3,%d2.w), %d4   	|, pdata
-	or.l       12(%a3,%d3.w), %d4  	|, pdata
-	movep.l    %d4, 0(%a2)             	| pdata, out
-	lea        (%a2,%d6.l), %a2   	| out, outskip
-	move.l     (%a0,%d0.w), %d4    	| table2_20, pdata
-	or.l       4(%a0,%d1.w), %d4   	| table2_20, pdata
-	or.l       8(%a0,%d2.w), %d4   	| table2_20, pdata
-	or.l       12(%a0,%d3.w), %d4  	| table2_20, pdata
-	movep.l    %d4, 0(%a2)             	| pdata, out
-	lea        (%a2,%d6.l), %a2   	| out, outskip
+| 142 "c2p.c" 1
+	lsr.w      #1, %d4                   	| groups
+	jcs        .oddnumbered                    
+	addi.w     #-1, %d4                  	| groups
+	.loop:                                     
+	movem.w    (%a2)+, %d0-%d3             	| in
+	move.l     (%a0,%d0.w), %d5    	| table1_17, pdata
+	or.l       4(%a0,%d1.w), %d5   	| table1_17, pdata
+	or.l       8(%a0,%d2.w), %d5   	| table1_17, pdata
+	or.l       12(%a0,%d3.w), %d5  	| table1_17, pdata
+	movep.l    %d5, 0(%a3)             	| pdata, out
+	lea        (%a3,%d7.l), %a3   	| out,
+	move.l     (%a4,%d0.w), %d5    	|, pdata
+	or.l       4(%a4,%d1.w), %d5   	|, pdata
+	or.l       8(%a4,%d2.w), %d5   	|, pdata
+	or.l       12(%a4,%d3.w), %d5  	|, pdata
+	movep.l    %d5, 0(%a3)             	| pdata, out
+	lea        (%a3,%d7.l), %a3   	| out,
+	.oddnumbered:                              
+	movem.w    (%a2)+, %d0-%d3             	| in
+	move.l     (%a5,%d0.w), %d5    	|, pdata
+	or.l       4(%a5,%d1.w), %d5   	|, pdata
+	or.l       8(%a5,%d2.w), %d5   	|, pdata
+	or.l       12(%a5,%d3.w), %d5  	|, pdata
+	movep.l    %d5, 0(%a3)             	| pdata, out
+	lea        (%a3,%d7.l), %a3   	| out,
+	move.l     (%a1,%d0.w), %d5    	| table4_20, pdata
+	or.l       4(%a1,%d1.w), %d5   	| table4_20, pdata
+	or.l       8(%a1,%d2.w), %d5   	| table4_20, pdata
+	or.l       12(%a1,%d3.w), %d5  	| table4_20, pdata
+	movep.l    %d5, 0(%a3)             	| pdata, out
+	lea        (%a3,%d7.l), %a3   	| out,
+	dbra.w     %d4,.loop                 	| groups
 	
 | 0 "" 2
-| c2p.c:130:     while (groups-- > 0) {
 #NO_APP
-	dbra %d5,.L216	| groups,
 .L214:
-| c2p.c:170: }
-	movem.l (%sp)+,%d2-%d7/%a2-%a3	|
+| c2p.c:209: }
+	movem.l (%sp)+,%d2-%d7/%a2-%a5	|
 	rts	
 	.bss
 	.even

@@ -126,47 +126,86 @@ void c2p_skip(unsigned char *out, const unsigned char *in, unsigned short pixels
 #if ASSEMBLER
 
 void c2p_w4_2x2_vertical(unsigned char *out, const unsigned short *in, unsigned short groups, long outskip, unsigned char phase) {
-    phase &= 3;
-    while (groups-- > 0) {
-        const unsigned long (*table1)[8][256][4] = c2p_x2_table + phase;
-        phase = (phase + 1) & 3;
-        const unsigned long (*table2)[8][256][4] = c2p_x2_table + phase;
-        phase = (phase + 1) & 3;
-        unsigned long pdata; // 32 bits of planar pixel data
-        asm volatile (
-            // Read four consecutive pixels from buffer, each stored in a word
-            "movem.w    (%[in])+, %%d0-%%d3             \n\t"
-
-            // Write 8 planar pixels (even line)
-            "move.l     (%[table1],%%d0.w), %[pdata]    \n\t"
-            "or.l       4(%[table1],%%d1.w), %[pdata]   \n\t"
-            "or.l       8(%[table1],%%d2.w), %[pdata]   \n\t"
-            "or.l       12(%[table1],%%d3.w), %[pdata]  \n\t"
-            "movep.l    %[pdata], 0(%[out])             \n\t"
-            "lea        (%[out],%[outskip].l), %[out]   \n\t"
-
-            // Write 8 planar pixels (odd line)
-            "move.l     (%[table2],%%d0.w), %[pdata]    \n\t"
-            "or.l       4(%[table2],%%d1.w), %[pdata]   \n\t"
-            "or.l       8(%[table2],%%d2.w), %[pdata]   \n\t"
-            "or.l       12(%[table2],%%d3.w), %[pdata]  \n\t"
-            "movep.l    %[pdata], 0(%[out])             \n\t"
-            "lea        (%[out],%[outskip].l), %[out]   \n\t"
-            
-            // Outputs
-            : [in] "+a" (in)
-            , [out] "+a" (out)
-            , [pdata] "=d" (pdata)
-            
-            // Inputs
-            : [table1] "a" (table1)
-            , [table2] "a" (table2)
-            , [outskip] "d" (outskip)
-            
-            // Clobbers
-            : "d0", "d1", "d2", "d3"
-        );
+    if (groups == 0) {
+        return;
     }
+    if (groups & 1) {
+        phase += 2;
+    }
+    typedef unsigned long PDataTable[8][256][4];
+    const PDataTable *table1 = c2p_x2_table + (phase & 3);
+    const PDataTable *table2 = c2p_x2_table + ((phase + 1) & 3);
+    const PDataTable *table3 = c2p_x2_table + ((phase + 2) & 3);
+    const PDataTable *table4 = c2p_x2_table + ((phase + 3) & 3);
+
+    unsigned long pdata; // 32 bits of planar pixel data
+    asm volatile (
+        // Account for dbra and two groups per iteration
+        "lsr.w      #1, %[groups]                   \n\t"
+        "jcs        .oddnumbered                    \n\t"
+        "addi.w     #-1, %[groups]                  \n\t"
+
+        // Beginning of dbra loop
+        ".loop:                                     \n\t"
+
+        // Read four consecutive pixels from buffer, each stored in a word
+        "movem.w    (%[in])+, %%d0-%%d3             \n\t"
+
+        // Write 8 planar pixels (even line)
+        "move.l     (%[table1],%%d0.w), %[pdata]    \n\t"
+        "or.l       4(%[table1],%%d1.w), %[pdata]   \n\t"
+        "or.l       8(%[table1],%%d2.w), %[pdata]   \n\t"
+        "or.l       12(%[table1],%%d3.w), %[pdata]  \n\t"
+        "movep.l    %[pdata], 0(%[out])             \n\t"
+        "lea        (%[out],%[outskip].l), %[out]   \n\t"
+
+        // Write 8 planar pixels (odd line)
+        "move.l     (%[table2],%%d0.w), %[pdata]    \n\t"
+        "or.l       4(%[table2],%%d1.w), %[pdata]   \n\t"
+        "or.l       8(%[table2],%%d2.w), %[pdata]   \n\t"
+        "or.l       12(%[table2],%%d3.w), %[pdata]  \n\t"
+        "movep.l    %[pdata], 0(%[out])             \n\t"
+        "lea        (%[out],%[outskip].l), %[out]   \n\t"
+
+        ".oddnumbered:                              \n\t"
+
+        // Read four consecutive pixels from buffer, each stored in a word
+        "movem.w    (%[in])+, %%d0-%%d3             \n\t"
+
+        // Write 8 planar pixels (even line)
+        "move.l     (%[table3],%%d0.w), %[pdata]    \n\t"
+        "or.l       4(%[table3],%%d1.w), %[pdata]   \n\t"
+        "or.l       8(%[table3],%%d2.w), %[pdata]   \n\t"
+        "or.l       12(%[table3],%%d3.w), %[pdata]  \n\t"
+        "movep.l    %[pdata], 0(%[out])             \n\t"
+        "lea        (%[out],%[outskip].l), %[out]   \n\t"
+
+        // Write 8 planar pixels (odd line)
+        "move.l     (%[table4],%%d0.w), %[pdata]    \n\t"
+        "or.l       4(%[table4],%%d1.w), %[pdata]   \n\t"
+        "or.l       8(%[table4],%%d2.w), %[pdata]   \n\t"
+        "or.l       12(%[table4],%%d3.w), %[pdata]  \n\t"
+        "movep.l    %[pdata], 0(%[out])             \n\t"
+        "lea        (%[out],%[outskip].l), %[out]   \n\t"
+
+        "dbra.w     %[groups],.loop                 \n\t"
+
+        // Outputs
+        : [in] "+a" (in)
+        , [out] "+a" (out)
+        , [pdata] "=d" (pdata)
+        , [groups] "+d" (groups)
+        
+        // Inputs
+        : [table1] "a" (table1)
+        , [table2] "a" (table2)
+        , [table3] "a" (table3)
+        , [table4] "a" (table4)
+        , [outskip] "d" (outskip)
+        
+        // Clobbers
+        : "d0", "d1", "d2", "d3"
+    );
 }
 
 #else

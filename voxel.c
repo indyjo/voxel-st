@@ -11,7 +11,7 @@
 
 
 // Should mouse control be active?
-#define INTERACTIVE
+//#define INTERACTIVE
 
 // If defined, background color is used to measure performance
 //#define COLORBAR_PROFILING
