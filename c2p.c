@@ -37,7 +37,12 @@ void init_c2p_table() {
 	};
     for (int i=0; i<256; i++) {
         unsigned char c1 = i & 0xf;
-        unsigned char c2 = (i & 0xf) + (i >> 4);
+        unsigned char c2 = ((i & 0xf) + (i >> 4)) & 0xf;
+        if (c1 > c2) {
+            unsigned char tmp = c1;
+            c1 = c2;
+            c2 = tmp;
+        }
 
 	    for (char fog = 0; fog < 8; fog++) {
             for (unsigned char line = 0; line < 4; line++) {
@@ -47,9 +52,9 @@ void init_c2p_table() {
                     if ((pixel & 1) == 0) pdata = 0;
                     char bayer_weight = bayer[line][pixel % 4];
                     unsigned char c;
-                    if (bayer_weight < 2*fog) {
+                    if (bayer_weight > 8-fog && bayer_weight < 8+fog) {
                         c = 15; // fog color
-                    }  else if (bayer_weight - 2*fog < 8) {
+                    }  else if (bayer_weight < 8) {
                         c = c1;
                     } else {
                         c = c2;
